@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사내 문서 RAG</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #fbfaf6; --ink: #2b2a27; --muted: #8a8578;
+    --line: #e5e0d5; --accent: #b8583a; --accent-soft: #f0e3dc;
+    --user-bubble: #eae4d7; --radius: 12px;
+    --code-bg: #ece7db; --pre-bg: #2b2a27; --pre-ink: #f4f1ea;
+    --sans: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --serif: "Iowan Old Style", "Apple Garamond", "Times New Roman", Georgia, serif;
+    --mono: "SFMono-Regular", Consolas, "D2Coding", monospace;
+  }
+  [data-theme="dark"] {
+    --bg: #21201d; --panel: #2a2926; --ink: #ece8df; --muted: #9b968a;
+    --line: #3a3833; --accent: #d17559; --accent-soft: #3a2f2a;
+    --user-bubble: #35322c;
+    --code-bg: #35332e; --pre-bg: #12110f; --pre-ink: #ece8df;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: var(--sans); color: var(--ink); background: var(--bg);
+         display: flex; height: 100vh; overflow: hidden; transition: background .2s, color .2s; }
+
+  /* 상단바 컨트롤 */
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .model-select { font-family: var(--sans); font-size: 12.5px; color: var(--ink);
+                  background: var(--panel); border: 1px solid var(--line);
+                  border-radius: 8px; padding: 6px 28px 6px 11px; cursor: pointer;
+                  appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5L5 6.5L8 3.5' stroke='%238a8578' fill='none' stroke-width='1.4'/></svg>");
+                  background-repeat: no-repeat; background-position: right 10px center; }
+  .model-select:hover { border-color: var(--accent); }
+  .icon-btn { width: 34px; height: 34px; border: 1px solid var(--line); background: var(--panel);
+              border-radius: 8px; cursor: pointer; display: grid; place-items: center;
+              color: var(--ink); font-size: 15px; transition: background .15s, border-color .15s; }
+  .icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+  /* 답변 복사 버튼 */
+  .copy-btn { margin-top: 8px; font-size: 11.5px; color: var(--muted);
+              background: none; border: 1px solid var(--line); border-radius: 6px;
+              padding: 3px 9px; cursor: pointer; transition: all .15s; }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* 좌측 */
+  .sidebar { width: 300px; flex-shrink: 0; background: var(--panel);
+             border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .sidebar-head { padding: 20px 20px 14px; border-bottom: 1px solid var(--line); }
+  .sidebar-head h1 { font-family: var(--serif); font-size: 19px; font-weight: 600;
+                     margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sidebar-head p { margin: 0; font-size: 12px; color: var(--muted); }
+  .file-actions { padding: 12px 16px; display: flex; gap: 8px; border-bottom: 1px solid var(--line); }
+  .btn { font-family: var(--sans); font-size: 12.5px; border: 1px solid var(--line);
+         background: #fff; color: var(--ink); padding: 7px 12px; border-radius: 8px;
+         cursor: pointer; transition: background .15s, border-color .15s; }
+  .btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { filter: brightness(1.05); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .file-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .file-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+               border-radius: 8px; font-size: 13px; }
+  .file-item:hover { background: var(--bg); }
+  .file-badge { flex-shrink: 0; width: 30px; height: 30px; border-radius: 7px;
+                display: grid; place-items: center; font-size: 9.5px; font-weight: 700;
+                background: var(--accent-soft); color: var(--accent); text-transform: uppercase; }
+  .file-meta { min-width: 0; }
+  .file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .file-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .file-item.unsupported { opacity: .45; }
+  .file-empty { padding: 24px 14px; font-size: 13px; color: var(--muted); text-align: center; line-height: 1.6; }
+
+  /* 우측 */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  .chat-scroll { flex: 1; overflow-y: auto; }
+  .chat-inner { max-width: 720px; margin: 0 auto; padding: 36px 24px 24px; }
+  .welcome { text-align: center; margin-top: 10vh; }
+  .welcome h2 { font-family: var(--serif); font-weight: 500; font-size: 30px;
+                letter-spacing: -0.02em; margin: 0 0 10px; }
+  .welcome p { color: var(--muted); font-size: 14.5px; margin: 0; }
+
+  .msg { display: flex; gap: 14px; margin-bottom: 26px; }
+  .avatar { flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px;
+            display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .avatar.ai { background: var(--accent); color: #fff; }
+  .avatar.user { background: var(--user-bubble); color: var(--ink); }
+  .bubble { padding-top: 2px; line-height: 1.7; font-size: 15px; word-break: break-word; min-width: 0; }
+  .bubble.thinking { color: var(--muted); font-style: italic; }
+
+  /* 마크다운 요소 */
+  .bubble p { margin: 0 0 10px; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble strong { font-weight: 700; }
+  .bubble em { font-style: italic; }
+  .bubble ul, .bubble ol { margin: 6px 0 12px; padding-left: 22px; }
+  .bubble li { margin: 3px 0; }
+  .bubble code { font-family: var(--mono); font-size: 13px; background: var(--code-bg);
+                 padding: 1px 5px; border-radius: 4px; }
+  .bubble pre { background: var(--pre-bg); color: var(--pre-ink); padding: 12px 14px; border-radius: 8px;
+                overflow-x: auto; margin: 10px 0; }
+  .bubble pre code { background: none; padding: 0; color: inherit; }
+  .bubble table { border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
+  .bubble th, .bubble td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  .bubble th { background: var(--accent-soft); }
+  .cursor::after { content: "▍"; color: var(--accent); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+
+  /* 출처 카드 */
+  .sources { margin-top: 12px; }
+  .sources-label { font-size: 11.5px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+  .source-card { border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+                 margin-bottom: 6px; overflow: hidden; }
+  .source-head { display: flex; align-items: center; gap: 8px; padding: 8px 11px;
+                 cursor: pointer; font-size: 12.5px; }
+  .source-head:hover { background: var(--bg); }
+  .source-num { flex-shrink: 0; width: 18px; height: 18px; border-radius: 5px; font-size: 10px;
+                font-weight: 700; background: var(--accent); color: #fff; display: grid; place-items: center; }
+  .source-file { font-weight: 600; }
+  .source-loc { color: var(--muted); }
+  .source-chevron { margin-left: auto; color: var(--muted); font-size: 11px; transition: transform .15s; }
+  .source-card.open .source-chevron { transform: rotate(90deg); }
+  .source-body { display: none; padding: 0 11px 10px; font-size: 12.5px; color: #5c584d;
+                 line-height: 1.6; border-top: 1px solid var(--line); padding-top: 8px; }
+  .source-card.open .source-body { display: block; }
+
+  /* 입력창 */
+  .composer { border-top: 1px solid var(--line); background: var(--bg); }
+  .composer-inner { max-width: 720px; margin: 0 auto; padding: 16px 24px 22px; }
+  .input-wrap { display: flex; align-items: flex-end; gap: 10px; background: #fff;
+                border: 1px solid var(--line); border-radius: var(--radius);
+                padding: 10px 10px 10px 16px; transition: border-color .15s; }
+  .input-wrap:focus-within { border-color: var(--accent); }
+  textarea { flex: 1; border: 0; outline: 0; resize: none; font-family: var(--sans);
+             font-size: 15px; line-height: 1.5; background: transparent; color: var(--ink);
+             max-height: 180px; padding: 4px 0; }
+  .send-btn { flex-shrink: 0; width: 34px; height: 34px; border: 0; border-radius: 8px;
+              background: var(--accent); color: #fff; cursor: pointer; font-size: 16px;
+              display: grid; place-items: center; transition: filter .15s; }
+  .send-btn:hover { filter: brightness(1.08); }
+  .send-btn:disabled { opacity: .4; cursor: default; }
+  .send-btn.stop { background: #6b6a66; font-size: 12px; }
+  .send-btn.stop:hover { background: #565550; filter: none; }
+  .hint { text-align: center; font-size: 11.5px; color: var(--muted); margin-top: 10px; }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-thumb { background: #d8d2c4; border-radius: 6px; border: 3px solid var(--panel); }
+  @media (max-width: 720px) { .sidebar { display: none; } }
+</style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <h1>문서 저장소</h1>
+      <p id="file-count">불러오는 중…</p>
+    </div>
+    <div class="file-actions">
+      <button class="btn btn-primary" id="upload-btn" onclick="document.getElementById('file-input').click()">＋ 문서 추가</button>
+      <button class="btn" id="ingest-btn" onclick="runIngest()">색인 갱신</button>
+      <input type="file" id="file-input" multiple style="display:none"
+             accept=".pdf,.xlsx,.xls,.pptx,.txt,.md" onchange="uploadFiles(this.files)">
+    </div>
+    <div class="file-list" id="file-list"></div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <select class="model-select" id="model-select" title="사용할 모델">
+          <option>불러오는 중…</option>
+        </select>
+      </div>
+      <div class="topbar-left">
+        <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" title="라이트/다크 전환">◐</button>
+        <button class="btn" onclick="resetChat()">새 대화</button>
+      </div>
+    </div>
+    <div class="chat-scroll" id="chat-scroll">
+      <div class="chat-inner" id="chat-inner">
+        <div class="welcome" id="welcome">
+          <h2>무엇을 찾아드릴까요?</h2>
+          <p>저장소의 문서를 근거로 답합니다. 질문을 입력해 보세요.</p>
+        </div>
+      </div>
+    </div>
+    <div class="composer">
+      <div class="composer-inner">
+        <div class="input-wrap">
+          <textarea id="q" rows="1" placeholder="문서에 대해 질문하기…"
+                    oninput="autogrow(this)" onkeydown="onKey(event)"></textarea>
+          <button class="send-btn" id="send" onclick="send()">↑</button>
+        </div>
+        <div class="hint">Enter로 전송 · Shift+Enter로 줄바꿈 · 이전 대화를 기억합니다</div>
+      </div>
+    </div>
+  </main>
+
+<script>
+const EXT_LABEL = { pdf:"PDF", xlsx:"XLS", xls:"XLS", pptx:"PPT", txt:"TXT", md:"MD", docx:"DOC", doc:"DOC", csv:"CSV" };
+const SESSION_ID = "s_" + Math.random().toString(36).slice(2, 10);
+let CURRENT_MODEL = null;
+
+/* ---------- 모델 목록 ---------- */
+async function loadModels() {
+  const sel = document.getElementById('model-select');
+  try {
+    const r = await fetch('/api/models');
+    const data = await r.json();
+    const models = data.models || [];
+    CURRENT_MODEL = data.default || models[0];
+    sel.innerHTML = models.map(m =>
+      `<option value="${escapeHtml(m)}" ${m === CURRENT_MODEL ? 'selected' : ''}>${escapeHtml(m)}</option>`
+    ).join('');
+    sel.onchange = () => { CURRENT_MODEL = sel.value; };
+  } catch (e) {
+    sel.innerHTML = '<option>모델을 불러오지 못함</option>';
+  }
+}
+
+/* ---------- 테마 ---------- */
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  // localStorage는 아티팩트 환경 제약이 있어 사용하지 않고 세션 동안만 유지
+}
+
+/* ---------- 업로드 ---------- */
+async function uploadFiles(fileList) {
+  if (!fileList || fileList.length === 0) return;
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  let done = 0, fail = 0, chunks = 0;
+  for (const f of fileList) {
+    btn.textContent = `색인 중 ${done + 1}/${fileList.length}…`;
+    const fd = new FormData();
+    fd.append('file', f);
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', body: fd });
+      const res = await r.json();
+      if (res.ok && res.indexed) { done++; chunks += (res.chunks || 0); }
+      else fail++;
+    } catch (e) { fail++; }
+  }
+  btn.textContent = fail ? `완료 (${fail}개 실패)` : `색인 완료 (${chunks}청크)`;
+  document.getElementById('file-input').value = '';
+  loadFiles();
+  setTimeout(() => { btn.disabled = false; btn.textContent = '＋ 문서 추가'; }, 2200);
+}
+
+/* ---------- 파일 목록 ---------- */
+async function loadFiles() {
+  const listEl = document.getElementById('file-list');
+  const countEl = document.getElementById('file-count');
+  try {
+    const r = await fetch('/api/files');
+    const data = await r.json();
+    const files = data.files || [];
+    const supported = files.filter(f => f.supported).length;
+    countEl.textContent = `${supported}개 문서 · ${files.length}개 파일`;
+    if (files.length === 0) {
+      listEl.innerHTML = '<div class="file-empty">docs 폴더에 문서가 없습니다.<br>파일을 넣고 새로고침하세요.</div>';
+      return;
+    }
+    listEl.innerHTML = files.map(f => `
+      <div class="file-item ${f.supported ? '' : 'unsupported'}" title="${f.path}">
+        <div class="file-badge">${EXT_LABEL[f.ext] || f.ext || '?'}</div>
+        <div class="file-meta">
+          <div class="file-name">${escapeHtml(f.name)}</div>
+          <div class="file-sub">${f.size} · ${f.modified}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    countEl.textContent = '목록을 불러오지 못했습니다';
+    listEl.innerHTML = '<div class="file-empty">서버에 연결할 수 없습니다.</div>';
+  }
+}
+
+async function runIngest() {
+  const btn = document.getElementById('ingest-btn');
+  btn.disabled = true; btn.textContent = '갱신 중…';
+  try { await fetch('/api/ingest', { method: 'POST' }); btn.textContent = '완료'; loadFiles(); }
+  catch (e) { btn.textContent = '실패'; }
+  setTimeout(() => { btn.disabled = false; btn.textContent = '색인 갱신'; }, 1500);
+}
+
+/* ---------- 경량 마크다운 렌더러 (외부 라이브러리 없이) ---------- */
+function renderMarkdown(md) {
+  const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  // 코드블록 보호
+  const blocks = [];
+  md = md.replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => {
+    blocks.push(`<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`);
+    return `\u0000${blocks.length - 1}\u0000`;
+  });
+
+  const lines = md.split('\n');
+  let html = '', i = 0;
+  const inline = t => esc(t)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/\[출처 (\d+)\]/g, '<code>[출처 $1]</code>');
+
+  while (i < lines.length) {
+    let line = lines[i];
+    // 코드블록 플레이스홀더
+    const ph = line.match(/^\u0000(\d+)\u0000$/);
+    if (ph) { html += blocks[+ph[1]]; i++; continue; }
+    // 표 (헤더 | --- | 행)
+    if (/\|/.test(line) && i + 1 < lines.length && /^\s*\|?[\s:*-]*\|[\s:*-|]*$/.test(lines[i+1].replace(/[^|:\-\s]/g,''))) {
+      const header = line.split('|').filter(c => c.trim() !== '');
+      i += 2;
+      let rows = [];
+      while (i < lines.length && lines[i].includes('|')) {
+        rows.push(lines[i].split('|').filter(c => c.trim() !== '')); i++;
+      }
+      html += '<table><thead><tr>' + header.map(h => `<th>${inline(h.trim())}</th>`).join('') + '</tr></thead><tbody>';
+      html += rows.map(r => '<tr>' + r.map(c => `<td>${inline(c.trim())}</td>`).join('') + '</tr>').join('');
+      html += '</tbody></table>';
+      continue;
+    }
+    // 순서 목록
+    if (/^\s*\d+\.\s/.test(line)) {
+      html += '<ol>';
+      while (i < lines.length && /^\s*\d+\.\s/.test(lines[i])) {
+        html += `<li>${inline(lines[i].replace(/^\s*\d+\.\s/, ''))}</li>`; i++;
+      }
+      html += '</ol>'; continue;
+    }
+    // 비순서 목록
+    if (/^\s*[-*]\s/.test(line)) {
+      html += '<ul>';
+      while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) {
+        html += `<li>${inline(lines[i].replace(/^\s*[-*]\s/, ''))}</li>`; i++;
+      }
+      html += '</ul>'; continue;
+    }
+    // 빈 줄
+    if (line.trim() === '') { i++; continue; }
+    // 문단
+    html += `<p>${inline(line)}</p>`; i++;
+  }
+  return html;
+}
+
+/* ---------- 메시지 ---------- */
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function scrollBottom() {
+  const s = document.getElementById('chat-scroll'); s.scrollTop = s.scrollHeight;
+}
+function addUser(text) {
+  document.getElementById('welcome')?.remove();
+  const inner = document.getElementById('chat-inner');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg';
+  wrap.innerHTML = `<div class="avatar user">나</div><div class="bubble"></div>`;
+  wrap.querySelector('.bubble').textContent = text;
+  inner.appendChild(wrap); scrollBottom();
+}
+function addAI() {
+  const inner = document.getElementById('chat-inner');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg';
+  wrap.innerHTML = `<div class="avatar ai">AI</div>
+    <div style="min-width:0"><div class="bubble thinking cursor">문서를 살펴보는 중…</div>
+    <div class="sources"></div><div class="copy-slot"></div></div>`;
+  inner.appendChild(wrap); scrollBottom();
+  return {
+    bubble: wrap.querySelector('.bubble'),
+    sources: wrap.querySelector('.sources'),
+    copySlot: wrap.querySelector('.copy-slot'),
+  };
+}
+function addCopyButton(slot, getText) {
+  const btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.textContent = '복사';
+  btn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      btn.textContent = '복사됨';
+      setTimeout(() => { btn.textContent = '복사'; }, 1500);
+    } catch (e) { btn.textContent = '복사 실패'; }
+  };
+  slot.appendChild(btn);
+}
+function renderSources(container, sources) {
+  if (!sources || sources.length === 0) return;
+  container.innerHTML = '<div class="sources-label">참고한 문서</div>' + sources.map(s => `
+    <div class="source-card" onclick="this.classList.toggle('open')">
+      <div class="source-head">
+        <span class="source-num">${s.index}</span>
+        <span class="source-file">${escapeHtml(s.source)}</span>
+        <span class="source-loc">${escapeHtml(s.location || '')}</span>
+        <span class="source-chevron">▶</span>
+      </div>
+      <div class="source-body">${escapeHtml(s.snippet || '')}</div>
+    </div>`).join('');
+}
+
+/* ---------- 전송 (SSE 스트리밍) ---------- */
+let ABORT = null;  // 현재 스트리밍 중단용 컨트롤러
+
+async function send() {
+  const el = document.getElementById('q');
+  const msg = el.value.trim();
+  if (!msg) return;
+  el.value = ''; autogrow(el);
+  setSending(true);
+
+  addUser(msg);
+  const { bubble, sources, copySlot } = addAI();
+  let acc = '';
+  let stopped = false;
+
+  ABORT = new AbortController();
+  try {
+    const r = await fetch('/api/chat/stream', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, session_id: SESSION_ID, model: CURRENT_MODEL }),
+      signal: ABORT.signal
+    });
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const part of parts) {
+        const line = part.replace(/^data: /, '').trim();
+        if (!line) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === 'sources') {
+          renderSources(sources, ev.sources);
+        } else if (ev.type === 'token') {
+          if (bubble.classList.contains('thinking')) {
+            bubble.classList.remove('thinking'); bubble.textContent = '';
+          }
+          acc += ev.text;
+          bubble.innerHTML = renderMarkdown(acc);
+          bubble.classList.add('cursor');
+          scrollBottom();
+        } else if (ev.type === 'done') {
+          bubble.classList.remove('cursor');
+          if (acc.trim()) addCopyButton(copySlot, () => acc);
+        } else if (ev.type === 'error') {
+          bubble.classList.remove('thinking', 'cursor');
+          bubble.textContent = '오류: ' + ev.message;
+        }
+      }
+    }
+  } catch (e) {
+    bubble.classList.remove('thinking', 'cursor');
+    if (e.name === 'AbortError') {
+      stopped = true;
+      bubble.innerHTML = acc.trim() ? renderMarkdown(acc) : '';
+      const note = document.createElement('div');
+      note.style.cssText = 'font-size:12px;color:var(--muted);margin-top:6px';
+      note.textContent = '· 답변이 중단되었습니다';
+      bubble.parentElement.insertBefore(note, copySlot);
+      if (acc.trim()) addCopyButton(copySlot, () => acc);
+    } else {
+      bubble.textContent = '서버에 연결할 수 없습니다.';
+    }
+  }
+  ABORT = null;
+  setSending(false);
+  scrollBottom();
+}
+
+function stopStreaming() {
+  if (ABORT) ABORT.abort();
+}
+
+function setSending(on) {
+  const btn = document.getElementById('send');
+  if (on) {
+    btn.classList.add('stop');
+    btn.textContent = '■';
+    btn.onclick = stopStreaming;
+    btn.disabled = false;
+  } else {
+    btn.classList.remove('stop');
+    btn.textContent = '↑';
+    btn.onclick = send;
+    btn.disabled = false;
+  }
+}
+
+async function resetChat() {
+  await fetch('/api/chat/reset', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: SESSION_ID })
+  });
+  document.getElementById('chat-inner').innerHTML = `
+    <div class="welcome" id="welcome">
+      <h2>무엇을 찾아드릴까요?</h2>
+      <p>저장소의 문서를 근거로 답합니다. 질문을 입력해 보세요.</p>
+    </div>`;
+}
+
+function autogrow(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }
+
+loadFiles();
+loadModels();
+</script>
+</body>
+</html>
