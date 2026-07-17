@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from app import config
 from app.files import list_files
-from app.models_util import list_ollama_models, save_upload
+from app.models_util import list_ollama_models, list_external_models, save_upload
 
 app = FastAPI(title="사내 문서 RAG 에이전트")
 
@@ -31,6 +31,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
     model: str = None
+    mode: str = None  # "local" | "external" (미지정 시 서버 기본값)
 
 
 class ResetRequest(BaseModel):
@@ -45,7 +46,28 @@ def api_files():
 
 @app.get("/api/models")
 def api_models():
-    return {"models": list_ollama_models(), "default": config.OLLAMA_MODEL}
+    """로컬/외부 모드별 모델 목록과 현재 기본 모드를 함께 반환.
+
+    - local  : Ollama 설치 모델 목록
+    - external: 외부 API 모델 목록(키가 있을 때만 실제 조회)
+    UI는 이 정보로 모드 토글과 모델 선택기를 구성한다."""
+    external_ok = config.external_configured()
+    return {
+        "default_mode": config.LLM_MODE,
+        "external_configured": external_ok,
+        "local": {
+            "models": list_ollama_models(),
+            "default": config.OLLAMA_MODEL,
+        },
+        "external": {
+            "models": list_external_models() if external_ok else [],
+            "default": config.EXTERNAL_MODEL,
+            "base_url": config.EXTERNAL_BASE_URL,
+        },
+        # 하위호환: 기존 클라이언트가 참조하던 필드 유지
+        "models": list_ollama_models(),
+        "default": config.OLLAMA_MODEL,
+    }
 
 
 @app.post("/api/upload")
@@ -78,7 +100,7 @@ def api_chat_stream(req: ChatRequest):
 
     def event_gen():
         try:
-            for ev in stream_answer(req.session_id, req.message, req.model):
+            for ev in stream_answer(req.session_id, req.message, req.model, req.mode):
                 yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
         except GeneratorExit:
             # 클라이언트가 중단(연결 종료)한 경우: 조용히 종료
@@ -106,7 +128,14 @@ def api_ingest():
 
 @app.get("/api/status")
 def api_status():
-    return {"docs_dir": config.DOCS_DIR, "model": config.OLLAMA_MODEL, "device": config.DEVICE}
+    return {
+        "docs_dir": config.DOCS_DIR,
+        "mode": config.LLM_MODE,
+        "model": config.OLLAMA_MODEL,
+        "external_model": config.EXTERNAL_MODEL,
+        "external_configured": config.external_configured(),
+        "device": config.DEVICE,
+    }
 
 
 @app.get("/")

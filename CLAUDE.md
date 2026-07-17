@@ -16,10 +16,14 @@
 
 이 프로젝트는 **사내 폐쇄망 + GPU 없는 사무용 PC**에서 운영된다. 아래 제약은 예외 없이 지킨다.
 
-1. **완전 로컬 / 외부 전송 금지**
-   - 문서·질의 데이터가 어떤 경우에도 외부로 나가면 안 된다.
-   - OpenAI, Anthropic 등 외부 API를 코드에 도입하지 않는다. (임베딩=로컬 bge-m3, LLM=로컬 Ollama)
-   - 새 라이브러리가 외부 호출을 하는지 확인하고, 하면 쓰지 않는다.
+1. **기본 로컬 / 외부는 선택적 옵트인** *(v4.2 개정)*
+   - **기본값은 완전 로컬**이며, 온프레미스(로컬) 모드에서는 문서·질의 데이터가 외부로 나가지 않는다.
+   - **임베딩은 어떤 모드에서도 항상 로컬 bge-m3**를 쓴다. 외부 임베딩 API는 도입하지 않는다.
+   - **LLM만** 외부 API(OpenAI 호환) 모드를 선택적으로 제공한다. 단:
+     - 서버 설정(`EXTERNAL_API_KEY`)이 있을 때만 활성화된다. 기본 `LLM_MODE=local`.
+     - 외부 모드에서는 질문+문서 컨텍스트가 외부로 전송되므로 UI에 경고를 표시한다.
+     - 이 옵트인 구조를 우회해 외부 전송을 기본값으로 만들거나 경고를 제거하지 않는다.
+   - 새 라이브러리가 외부 호출을 하는지 확인한다. LLM 외의 목적으로 외부 호출을 추가하지 않는다.
 
 2. **폐쇄망 / 오프라인 동작**
    - 최초 모델 반입 이후 인터넷 없이 동작해야 한다.
@@ -47,8 +51,9 @@
 | 프론트 | 단일 HTML/CSS/JS (`static/index.html`) |
 | 오케스트레이션 | LangChain |
 | 벡터DB | Qdrant (로컬 Docker) |
-| 임베딩 | bge-m3 (로컬, 1024차원, CPU) |
-| LLM | Ollama (qwen2.5:7b 기본, 사용자 선택) |
+| 임베딩 | bge-m3 (로컬, 1024차원, CPU) — 모드 무관 공통 |
+| LLM (로컬) | Ollama (qwen2.5:7b 기본, 사용자 선택) |
+| LLM (외부, 선택) | OpenAI 호환 API (langchain-openai) — 옵트인 |
 | 로더 | PyMuPDF, openpyxl, python-pptx |
 
 ---
@@ -75,7 +80,7 @@ rag-agent-web4/
    ├─ ingest.py         # run()=전체적재, ingest_file()=단일적재
    ├─ chat_engine.py    # 스트리밍/대화기억/커스텀모델 통합 엔진
    ├─ my_model.py       # ★사용자 예측 모델 자리 (predict())
-   ├─ models_util.py    # Ollama 모델목록 조회 + 업로드 저장
+   ├─ models_util.py    # 로컬/외부 모델목록 조회 + 업로드 저장
    ├─ files.py          # docs 폴더 파일목록 조회
    └─ main.py           # FastAPI 엔드포인트
 ```
@@ -88,9 +93,9 @@ rag-agent-web4/
 |--------|------|------|
 | GET | `/` | 웹 UI |
 | GET | `/api/files` | docs 파일 목록 |
-| GET | `/api/models` | Ollama 설치 모델 목록 |
+| GET | `/api/models` | 모드별 모델 목록(로컬/외부) + 기본 모드 |
 | POST | `/api/upload` | 문서 업로드 + 자동 색인 |
-| POST | `/api/chat/stream` | SSE 스트리밍 답변 |
+| POST | `/api/chat/stream` | SSE 스트리밍 답변 (`mode`로 로컬/외부 지정) |
 | POST | `/api/chat/reset` | 세션 대화 초기화 |
 | POST | `/api/ingest` | 폴더 전체 재색인 |
 
@@ -116,7 +121,7 @@ uvicorn app.main:app --reload # http://localhost:8000
 기능을 추가/변경할 때마다 **반드시** `사내문서_RAG_요구사항정의서.md`를 함께 갱신한다.
 - 새 기능은 해당 분류에 `FR-`/`NFR-` ID를 부여해 표에 추가한다.
 - 문서 하단 **7장 변경 이력** 표에 새 버전과 변경 내용을 기록한다.
-- 현재 최신 버전: **v4.0**
+- 현재 최신 버전: **v4.2**
 
 ### 코드 스타일
 - 주석·문서·UI 텍스트는 한국어를 기본으로 한다.
@@ -146,7 +151,8 @@ uvicorn app.main:app --reload # http://localhost:8000
 
 ## 하지 말아야 할 것 (요약)
 
-- ❌ 외부 API(OpenAI/Anthropic 등)로 임베딩·LLM 호출 추가
+- ❌ 외부 API로 **임베딩** 호출 추가 (임베딩은 항상 로컬 bge-m3)
+- ❌ 외부 LLM 모드를 기본값으로 강제하거나 외부 전송 경고 제거 (외부는 옵트인)
 - ❌ 프론트에 CDN·외부 라이브러리 도입
 - ❌ 오프라인 강제 환경변수 해제
 - ❌ 요구사항 정의서 갱신 없이 기능만 추가

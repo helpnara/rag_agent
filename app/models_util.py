@@ -19,6 +19,29 @@ def list_ollama_models() -> list:
         return [config.OLLAMA_MODEL]
 
 
+def list_external_models() -> list:
+    """외부 OpenAI 호환 엔드포인트의 모델 목록을 조회.
+
+    GET {base_url}/models 로 조회하며, 실패하면 config 기본 모델 하나만 반환.
+    ⚠️ 이 호출 자체가 외부 서버로 나가므로, 키가 설정된 경우에만 시도한다."""
+    if not config.external_configured():
+        return [config.EXTERNAL_MODEL]
+    try:
+        base = config.EXTERNAL_BASE_URL.rstrip("/")
+        req = urllib.request.Request(
+            f"{base}/models",
+            headers={"Authorization": f"Bearer {config.EXTERNAL_API_KEY}"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data = json.loads(r.read().decode())
+        names = [m["id"] for m in data.get("data", []) if m.get("id")]
+        names.sort()
+        return names or [config.EXTERNAL_MODEL]
+    except Exception:
+        # 목록 조회에 실패해도 기본 모델로는 대화가 가능하도록 유지.
+        return [config.EXTERNAL_MODEL]
+
+
 # 업로드 허용 확장자 (loaders와 일치)
 ALLOWED_UPLOAD = {".pdf", ".xlsx", ".xls", ".pptx", ".txt", ".md"}
 

@@ -9,6 +9,8 @@ langchain-community==0.3.5
 langchain-huggingface==0.1.2
 langchain-ollama==0.2.1
 langchain-qdrant==0.2.0
+# 외부 LLM API 모드(OpenAI 호환). 로컬 전용으로 쓰면 설치·호출되지 않음.
+langchain-openai==0.2.9
 
 # Vector DB
 qdrant-client==1.12.1

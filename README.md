@@ -75,6 +75,24 @@ uvicorn app.main:app --reload
 최초 1회만 인터넷으로 (1) bge-m3, (2) ollama 모델을 받으면,
 그 이후로는 인터넷을 끊어도 전부 동작합니다.
 
+## LLM 동작 모드 (로컬 / 외부) — v4.2
+기본은 위 설명대로 **완전 로컬(온프레미스)** 모드입니다. 외부망 연결이 허용되는 환경에서는
+**외부 생성형 LLM API(OpenAI 호환)** 모드를 선택적으로 켤 수 있습니다.
+
+> ⚠️ 외부 모드에서는 **질문 + 검색된 문서 컨텍스트가 외부 서버로 전송**됩니다.
+> 폐쇄망 보안 정책을 확인한 뒤에만 사용하세요. **임베딩은 두 모드 모두 로컬 bge-m3**를 씁니다.
+
+`.env`에 아래를 설정하면 화면 상단에 "외부 API" 옵션이 활성화됩니다(키가 없으면 비활성).
+```
+LLM_MODE=local                          # 기본 모드 (local / external)
+EXTERNAL_BASE_URL=https://api.openai.com/v1
+EXTERNAL_API_KEY=sk-...                  # 비어 있으면 외부 모드 비활성화
+EXTERNAL_MODEL=gpt-4o-mini
+```
+- 화면 상단 콤보박스에서 **온프레미스(로컬) ↔ 외부 API**를 전환합니다.
+- 외부 모드 선택 시 상단에 전송 경고 배너가 나타납니다.
+- OpenAI 외에 vLLM·OpenRouter 등 **OpenAI 호환 서버**도 `EXTERNAL_BASE_URL`만 바꾸면 됩니다.
+
 ## 확장 포인트
 - 내 모델 연결: `app/my_model.py`의 predict() 안을 실제 추론으로 교체
 - 검색 품질: agent.py의 similarity_search를 하이브리드+리랭커로 교체

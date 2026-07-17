@@ -29,7 +29,32 @@ SYSTEM_PROMPT = """당신은 사내 문서 기반 어시스턴트입니다.
 - 필요하면 마크다운(굵게, 목록, 표)으로 읽기 쉽게 구성하세요."""
 
 
-def _llm(model: str = None) -> ChatOllama:
+def _llm(model: str = None, mode: str = None):
+    """모드에 맞는 LangChain 챗 모델을 만든다.
+
+    mode="local"    → ChatOllama (완전 로컬, 기본)
+    mode="external" → ChatOpenAI (OpenAI 호환 외부 API)
+                      ⚠️ 질문 + 문서 컨텍스트가 외부로 전송된다.
+    """
+    mode = mode or config.LLM_MODE
+
+    if mode == "external":
+        # 외부 의존성은 지연 임포트: 로컬 모드만 쓸 때 패키지가 없어도 동작.
+        from langchain_openai import ChatOpenAI
+
+        if not config.external_configured():
+            raise RuntimeError(
+                "외부 API 모드가 설정되지 않았습니다. EXTERNAL_API_KEY를 설정하세요."
+            )
+        return ChatOpenAI(
+            model=model or config.EXTERNAL_MODEL,
+            base_url=config.EXTERNAL_BASE_URL,
+            # 일부 OpenAI 호환 로컬 서버는 키를 요구하지 않으므로 빈 값 방어.
+            api_key=config.EXTERNAL_API_KEY or "not-needed",
+            temperature=0,
+            streaming=True,
+        )
+
     return ChatOllama(
         model=model or config.OLLAMA_MODEL,
         base_url=config.OLLAMA_BASE_URL,
@@ -64,7 +89,8 @@ def clear_history(session_id: str) -> None:
     _HISTORY.pop(session_id, None)
 
 
-def stream_answer(session_id: str, question: str, model: str = None) -> Generator[dict, None, None]:
+def stream_answer(session_id: str, question: str, model: str = None,
+                  mode: str = None) -> Generator[dict, None, None]:
     """SSE로 흘려보낼 이벤트를 생성한다.
 
     yield 되는 dict의 형태:
@@ -89,7 +115,7 @@ def stream_answer(session_id: str, question: str, model: str = None) -> Generato
     # 3) LLM 스트리밍
     msgs = _build_messages(session_id, question, context)
     full = []
-    for chunk in _llm(model).stream(msgs):
+    for chunk in _llm(model, mode).stream(msgs):
         token = chunk.content or ""
         if token:
             full.append(token)

@@ -38,6 +38,24 @@
               color: var(--ink); font-size: 15px; transition: background .15s, border-color .15s; }
   .icon-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
 
+  /* 모드 뱃지 (로컬/외부 표시) */
+  .mode-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+                letter-spacing: .01em; white-space: nowrap; }
+  .mode-badge.local { background: #e3ebe0; color: #3f6b3a; }
+  .mode-badge.external { background: #f6e0c8; color: #9a5a1e; }
+  [data-theme="dark"] .mode-badge.local { background: #2b3a2a; color: #9cc796; }
+  [data-theme="dark"] .mode-badge.external { background: #3d2e1c; color: #e0a86a; }
+  .model-select:disabled { opacity: .5; cursor: default; }
+  .model-select option:disabled { color: var(--muted); }
+
+  /* 외부 전송 경고 배너 */
+  .ext-warning { display: none; background: #fbe4d3; color: #8a4b12;
+                 border-bottom: 1px solid #eccba0; font-size: 12.5px; line-height: 1.5;
+                 padding: 9px 20px; }
+  .ext-warning.show { display: block; }
+  .ext-warning strong { font-weight: 700; }
+  [data-theme="dark"] .ext-warning { background: #35281a; color: #e0a86a; border-bottom-color: #4a3620; }
+
   /* 답변 복사 버튼 */
   .copy-btn { margin-top: 8px; font-size: 11.5px; color: var(--muted);
               background: none; border: 1px solid var(--line); border-radius: 6px;
@@ -168,14 +186,23 @@
   <main class="main">
     <div class="topbar">
       <div class="topbar-left">
+        <select class="model-select" id="mode-select" title="LLM 동작 모드">
+          <option value="local">🖥 온프레미스(로컬)</option>
+          <option value="external">☁ 외부 API</option>
+        </select>
         <select class="model-select" id="model-select" title="사용할 모델">
           <option>불러오는 중…</option>
         </select>
+        <span class="mode-badge local" id="mode-badge">로컬</span>
       </div>
       <div class="topbar-left">
         <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" title="라이트/다크 전환">◐</button>
         <button class="btn" onclick="resetChat()">새 대화</button>
       </div>
+    </div>
+    <div class="ext-warning" id="ext-warning">
+      <strong>⚠ 외부 API 모드</strong> — 질문과 검색된 <strong>사내 문서 컨텍스트가 외부 서버로 전송</strong>됩니다.
+      폐쇄망 보안 정책을 확인한 뒤 사용하세요.
     </div>
     <div class="chat-scroll" id="chat-scroll">
       <div class="chat-inner" id="chat-inner">
@@ -201,22 +228,60 @@
 const EXT_LABEL = { pdf:"PDF", xlsx:"XLS", xls:"XLS", pptx:"PPT", txt:"TXT", md:"MD", docx:"DOC", doc:"DOC", csv:"CSV" };
 const SESSION_ID = "s_" + Math.random().toString(36).slice(2, 10);
 let CURRENT_MODEL = null;
+let CURRENT_MODE = 'local';
+let MODELS_DATA = null;   // /api/models 응답 전체 보관
 
-/* ---------- 모델 목록 ---------- */
+/* ---------- 모델/모드 목록 ---------- */
 async function loadModels() {
-  const sel = document.getElementById('model-select');
+  const modeSel = document.getElementById('mode-select');
+  const modelSel = document.getElementById('model-select');
   try {
     const r = await fetch('/api/models');
-    const data = await r.json();
-    const models = data.models || [];
-    CURRENT_MODEL = data.default || models[0];
-    sel.innerHTML = models.map(m =>
+    MODELS_DATA = await r.json();
+    CURRENT_MODE = MODELS_DATA.default_mode || 'local';
+
+    // 외부 API가 설정되지 않았으면 외부 옵션 비활성화
+    const extOpt = modeSel.querySelector('option[value="external"]');
+    if (!MODELS_DATA.external_configured) {
+      extOpt.disabled = true;
+      extOpt.textContent = '☁ 외부 API (미설정)';
+      if (CURRENT_MODE === 'external') CURRENT_MODE = 'local';
+    }
+    modeSel.value = CURRENT_MODE;
+    modeSel.onchange = () => { CURRENT_MODE = modeSel.value; applyMode(); };
+
+    applyMode();
+  } catch (e) {
+    modelSel.innerHTML = '<option>모델을 불러오지 못함</option>';
+  }
+}
+
+/* 현재 모드에 맞춰 모델 목록·뱃지·경고배너를 갱신 */
+function applyMode() {
+  const modelSel = document.getElementById('model-select');
+  const badge = document.getElementById('mode-badge');
+  const warning = document.getElementById('ext-warning');
+  if (!MODELS_DATA) return;
+
+  const info = MODELS_DATA[CURRENT_MODE] || { models: [], default: '' };
+  const models = info.models || [];
+  CURRENT_MODEL = info.default || models[0] || null;
+
+  if (models.length === 0) {
+    modelSel.innerHTML = '<option>사용 가능한 모델 없음</option>';
+    modelSel.disabled = true;
+  } else {
+    modelSel.disabled = false;
+    modelSel.innerHTML = models.map(m =>
       `<option value="${escapeHtml(m)}" ${m === CURRENT_MODEL ? 'selected' : ''}>${escapeHtml(m)}</option>`
     ).join('');
-    sel.onchange = () => { CURRENT_MODEL = sel.value; };
-  } catch (e) {
-    sel.innerHTML = '<option>모델을 불러오지 못함</option>';
+    modelSel.onchange = () => { CURRENT_MODEL = modelSel.value; };
   }
+
+  const isExt = CURRENT_MODE === 'external';
+  badge.textContent = isExt ? '외부 API' : '로컬';
+  badge.className = 'mode-badge ' + (isExt ? 'external' : 'local');
+  warning.classList.toggle('show', isExt);
 }
 
 /* ---------- 테마 ---------- */
@@ -422,7 +487,7 @@ async function send() {
   try {
     const r = await fetch('/api/chat/stream', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, session_id: SESSION_ID, model: CURRENT_MODEL }),
+      body: JSON.stringify({ message: msg, session_id: SESSION_ID, model: CURRENT_MODEL, mode: CURRENT_MODE }),
       signal: ABORT.signal
     });
     const reader = r.body.getReader();
