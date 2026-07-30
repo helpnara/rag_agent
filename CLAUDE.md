@@ -72,6 +72,10 @@ rag-agent-web4/
 ├─ docs/                          # RAG 대상 문서 폴더
 ├─ static/
 │  └─ index.html                  # 웹 UI (파일패널 + 채팅)
+├─ tests/                         # 이중 모드 검증 (목 LLM 서버 기반, 외부 의존 없음)
+│  ├─ mock_llm_servers.py         #   목 Ollama / OpenAI 호환 서버
+│  ├─ verify_llm_modes.py         #   자동 검증 (python tests/verify_llm_modes.py)
+│  └─ serve_mock.py               #   브라우저 수동 확인용 기동
 └─ app/
    ├─ config.py         # 설정 (모델경로, 청크크기, DEVICE 등)
    ├─ loaders.py        # 형식별 문서 로더 + LOADERS 확장자맵
@@ -146,6 +150,8 @@ uvicorn app.main:app --reload # http://localhost:8000
 - **FR-TOOL-04 (로컬 모델 Tool Calling 안정성)**: docstring 정교화, 재시도 처리.
 - **BL-03 (답변 중단 시 서버측 생성 즉시 중지 검증)**: 현재 GeneratorExit로 정리하나
   Ollama 생성이 실제로 멈추는지 검증 필요.
+- **BL-04 (다크모드 잔여 라이트 스타일)**: `static/index.html`의 `.btn`·`.input-wrap`이
+  `background: #fff` 하드코딩이라 다크모드에서 흰색으로 남는다. CSS 변수로 교체 필요.
 
 ---
 
