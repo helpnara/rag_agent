@@ -8,6 +8,20 @@
 
 특정 폴더의 사내 문서(PDF, xlsx, pptx, txt, md)를 벡터화하여, 로컬 LLM과 연동한 검색·질의응답이 가능한 웹 기반 RAG 에이전트. 사용자가 개발하는 예측 모델을 Tool Calling으로 연동한다.
 
+**두 가지 실행 형태**를 하나의 저장소에서 유지한다 (개발 전략: 데모로 먼저 검증 → 온프레미스 이식).
+
+| | 온프레미스 (본 운영) | 공개 데모 (Streamlit Cloud) |
+|---|---|---|
+| 진입점 | `app/main.py` (FastAPI) | `streamlit_app.py` |
+| 의존성 | `requirements-onprem.txt` | `requirements.txt` (Cloud가 자동 설치) |
+| LLM | Ollama 로컬 | 외부 OpenAI 호환 API |
+| 임베딩 | bge-m3 (로컬, 1024차원) | fastembed 경량 (로컬, 384차원) |
+| 벡터DB | Qdrant (Docker) | qdrant-client 메모리 모드 |
+| 문서 | 사내 문서(`docs/`) | 공개 샘플(`demo_docs/`) |
+
+**온프레미스가 기본값이다.** 환경변수를 주지 않으면 항상 온프레미스 구성으로 동작한다.
+데모 구성은 `streamlit_app.py`가 환경변수로 명시적으로 켠다.
+
 상세 요구사항은 `사내문서_RAG_요구사항정의서.md`(SRS)를 참조한다.
 
 ---
@@ -25,14 +39,17 @@
      - 이 옵트인 구조를 우회해 외부 전송을 기본값으로 만들거나 경고를 제거하지 않는다.
    - 새 라이브러리가 외부 호출을 하는지 확인한다. LLM 외의 목적으로 외부 호출을 추가하지 않는다.
 
-2. **폐쇄망 / 오프라인 동작**
+2. **폐쇄망 / 오프라인 동작** *(온프레미스 구성 기준)*
    - 최초 모델 반입 이후 인터넷 없이 동작해야 한다.
    - 임베딩 모델은 로컬 폴더(`./models/bge-m3`)에서만 로드한다. 모델명으로 허브에서 받지 않는다.
    - `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` 설정을 해제하지 않는다.
+   - 예외: 데모 전용 `EMBEDDING_BACKEND=fastembed`일 때만 오프라인 강제를 적용하지 않는다
+     (모델 최초 다운로드 필요). **폐쇄망에서는 fastembed를 쓰지 않는다.**
 
-3. **프론트엔드 외부 리소스 금지**
+3. **프론트엔드 외부 리소스 금지** *(온프레미스 UI 기준)*
    - `static/index.html`은 CDN·외부 폰트·외부 JS 라이브러리를 사용하지 않는다.
    - 단일 파일로 자기완결적이어야 한다. 마크다운 렌더러 등은 자체 구현한다.
+   - 데모용 `streamlit_app.py`는 Streamlit 자체 컴포넌트만 쓴다(별도 CDN 도입 금지).
 
 4. **GPU 없는 CPU 환경 전제**
    - 무거운 모델·연산을 기본값으로 넣지 않는다. LLM 기본은 `qwen2.5:7b`.
@@ -64,22 +81,29 @@
 rag-agent-web4/
 ├─ CLAUDE.md                      # 이 파일
 ├─ 사내문서_RAG_요구사항정의서.md   # SRS (변경 이력 관리)
+├─ 개발_진행상황.md                # 일자별 작업 내역 + 향후 계획
 ├─ README.md / README_OFFLINE.md  # 실행/반입 가이드
-├─ requirements.txt
+├─ requirements.txt               # ★데모(Streamlit Cloud)용 — Cloud가 자동 설치
+├─ requirements-onprem.txt        # ★온프레미스(FastAPI+Ollama+bge-m3)용
+├─ streamlit_app.py               # ★데모 진입점 (외부 API + 경량 임베딩)
+├─ demo_docs/                     # 공개 데모용 샘플 문서 (가상 회사)
+├─ .streamlit/secrets.toml.example
 ├─ docker-compose.yml             # Qdrant
 ├─ download_models.py             # [반입PC] bge-m3 다운로드
 ├─ check_offline.py               # [폐쇄망PC] 준비상태 점검
 ├─ docs/                          # RAG 대상 문서 폴더
 ├─ static/
 │  └─ index.html                  # 웹 UI (파일패널 + 채팅)
-├─ tests/                         # 이중 모드 검증 (목 LLM 서버 기반, 외부 의존 없음)
-│  ├─ mock_llm_servers.py         #   목 Ollama / OpenAI 호환 서버
-│  ├─ verify_llm_modes.py         #   자동 검증 (python tests/verify_llm_modes.py)
+├─ tests/                         # 검증 (목 LLM 서버 기반, 외부 의존 없음)
+│  ├─ mock_llm_servers.py         #   목 Ollama / OpenAI 호환 서버 (stdlib만 사용)
+│  ├─ verify_llm_modes.py         #   LLM 이중 모드 검증
+│  ├─ verify_demo_rag.py          #   데모 구성(fastembed+메모리Qdrant) 검증
 │  └─ serve_mock.py               #   브라우저 수동 확인용 기동
 └─ app/
-   ├─ config.py         # 설정 (모델경로, 청크크기, DEVICE 등)
+   ├─ config.py         # 설정 (모드·모델경로·청크크기·DEVICE 등)
    ├─ loaders.py        # 형식별 문서 로더 + LOADERS 확장자맵
-   ├─ vectorstore.py    # Qdrant + bge-m3 임베딩, delete_by_source()
+   ├─ embeddings.py     # 임베딩 백엔드 전환 (bge-m3 / fastembed)
+   ├─ vectorstore.py    # Qdrant(server·memory·path) + 임베딩, delete_by_source()
    ├─ retrieval.py      # 검색 + 출처 메타데이터 반환
    ├─ ingest.py         # run()=전체적재, ingest_file()=단일적재
    ├─ chat_engine.py    # 스트리밍/대화기억/커스텀모델 통합 엔진
@@ -108,14 +132,26 @@ rag-agent-web4/
 ## 실행 방법
 
 ```bash
-# 개발/테스트 (인터넷 되는 환경)
-pip install -r requirements.txt
+# 온프레미스 (FastAPI) — 본 운영 형태
+pip install -r requirements-onprem.txt
 docker compose up -d          # Qdrant
 python -m app.ingest          # docs 색인
 uvicorn app.main:app --reload # http://localhost:8000
+
+# 공개 데모 (Streamlit) — 별도 가상환경에서
+pip install -r requirements.txt
+streamlit run streamlit_app.py
 ```
 
+⚠️ Streamlit과 FastAPI는 starlette 버전이 충돌하므로 **가상환경을 분리**한다.
+
 폐쇄망 반입·설치는 `README_OFFLINE.md`를 따른다.
+
+### 검증
+```bash
+python tests/verify_llm_modes.py   # 온프레미스 환경에서
+python tests/verify_demo_rag.py    # 데모 환경에서
+```
 
 ---
 
@@ -125,7 +161,7 @@ uvicorn app.main:app --reload # http://localhost:8000
 기능을 추가/변경할 때마다 **반드시** `사내문서_RAG_요구사항정의서.md`를 함께 갱신한다.
 - 새 기능은 해당 분류에 `FR-`/`NFR-` ID를 부여해 표에 추가한다.
 - 문서 하단 **7장 변경 이력** 표에 새 버전과 변경 내용을 기록한다.
-- 현재 최신 버전: **v4.2**
+- 현재 최신 버전: **v4.3**
 
 ### 코드 스타일
 - 주석·문서·UI 텍스트는 한국어를 기본으로 한다.
@@ -157,9 +193,12 @@ uvicorn app.main:app --reload # http://localhost:8000
 
 ## 하지 말아야 할 것 (요약)
 
-- ❌ 외부 API로 **임베딩** 호출 추가 (임베딩은 항상 로컬 bge-m3)
+- ❌ 외부 API로 **임베딩** 호출 추가 (임베딩은 어느 구성에서도 로컬 실행)
 - ❌ 외부 LLM 모드를 기본값으로 강제하거나 외부 전송 경고 제거 (외부는 옵트인)
 - ❌ 프론트에 CDN·외부 라이브러리 도입
-- ❌ 오프라인 강제 환경변수 해제
+- ❌ 온프레미스 구성에서 오프라인 강제 환경변수 해제
+- ❌ 데모용 설정(fastembed·메모리 Qdrant·외부 LLM)을 **기본값**으로 만들기
+  → 환경변수가 없으면 항상 온프레미스 구성이어야 한다
+- ❌ `demo_docs/`에 실제 사내 문서 추가 (공개 저장소·공개 앱에 노출됨)
 - ❌ 요구사항 정의서 갱신 없이 기능만 추가
 - ❌ GPU 전제의 무거운 기본값 설정

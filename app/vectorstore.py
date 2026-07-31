@@ -1,43 +1,47 @@
-"""Qdrant 벡터스토어 + 로컬 임베딩 (폐쇄망/오프라인 강제).
+"""Qdrant 벡터스토어 + 로컬 임베딩.
 
-이 파일 최상단에서 HuggingFace의 인터넷 접속을 끈다.
-모델은 반드시 로컬 폴더(config.EMBEDDING_MODEL_PATH)에서만 로드된다.
+온프레미스 기본값(EMBEDDING_BACKEND=bge-m3)에서는 이 파일 최상단에서
+HuggingFace의 인터넷 접속을 끄고, 모델은 반드시 로컬 폴더에서만 로드된다.
+
+데모용 fastembed 백엔드는 최초 1회 모델 다운로드가 필요하므로 이때만
+오프라인 강제를 적용하지 않는다. (폐쇄망에서는 fastembed를 쓰지 않는다)
 """
 import os
 
-# --- 오프라인 강제: 어떤 경우에도 허브에 접속 시도하지 않음 ---
-os.environ.setdefault("HF_HUB_OFFLINE", "1")
-os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+from app import config
 
-from langchain_huggingface import HuggingFaceEmbeddings
+# --- 오프라인 강제: 폐쇄망 기본 백엔드에서는 어떤 경우에도 허브에 접속하지 않음 ---
+if config.EMBEDDING_BACKEND != "fastembed":
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
 from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 
-from app import config
+from app.embeddings import embedding_dim, get_embeddings  # noqa: F401  (재노출)
 
-_embeddings = None
-
-
-def get_embeddings() -> HuggingFaceEmbeddings:
-    """로컬 폴더의 bge-m3 임베딩. 폴더가 없으면 명확한 안내와 함께 종료."""
-    global _embeddings
-    if _embeddings is None:
-        if not os.path.isdir(config.EMBEDDING_MODEL_PATH):
-            raise FileNotFoundError(
-                f"임베딩 모델 폴더가 없습니다: {config.EMBEDDING_MODEL_PATH}\n"
-                "반입 절차에 따라 bge-m3 파일을 이 폴더에 넣으세요."
-            )
-        _embeddings = HuggingFaceEmbeddings(
-            model_name=config.EMBEDDING_MODEL_PATH,   # 이름이 아니라 경로
-            model_kwargs={"device": config.DEVICE},
-            encode_kwargs={"normalize_embeddings": True},
-        )
-    return _embeddings
+_client = None
 
 
 def get_client() -> QdrantClient:
-    return QdrantClient(url=config.QDRANT_URL)
+    """QDRANT_MODE에 따라 서버/메모리/파일 클라이언트를 만든다.
+
+    memory·path 모드는 로컬 클라이언트라 프로세스마다 별도 인스턴스가 되므로
+    한 번 만든 클라이언트를 재사용한다(파일 모드의 잠금 충돌도 방지).
+    """
+    global _client
+    if _client is not None:
+        return _client
+
+    if config.QDRANT_MODE == "memory":
+        _client = QdrantClient(location=":memory:")
+    elif config.QDRANT_MODE == "path":
+        os.makedirs(config.QDRANT_PATH, exist_ok=True)
+        _client = QdrantClient(path=config.QDRANT_PATH)
+    else:
+        _client = QdrantClient(url=config.QDRANT_URL)
+    return _client
 
 
 def ensure_collection(client: QdrantClient) -> None:
@@ -46,7 +50,7 @@ def ensure_collection(client: QdrantClient) -> None:
         client.create_collection(
             collection_name=config.QDRANT_COLLECTION,
             vectors_config=VectorParams(
-                size=config.EMBEDDING_DIM,
+                size=embedding_dim(),
                 distance=Distance.COSINE,
             ),
         )

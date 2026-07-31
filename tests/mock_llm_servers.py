@@ -3,17 +3,17 @@
 실제 Ollama나 외부 API 없이 chat_engine의 두 경로(로컬/외부)를
 HTTP 스트리밍까지 포함해 그대로 검증하기 위한 테스트 더블.
 
-실행: python mock_llm_servers.py            (두 서버 동시 기동)
+표준 라이브러리만 사용한다. 온프레미스 환경(FastAPI)과 데모 환경(Streamlit)
+어느 쪽에서도 추가 의존성 없이 동작해야 하기 때문이다.
+
+실행: python tests/mock_llm_servers.py     (두 서버 동시 기동)
   - Ollama 목      : http://127.0.0.1:18434
   - OpenAI 호환 목 : http://127.0.0.1:18000/v1
 """
 import json
 import threading
 import time
-
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, JSONResponse
-import uvicorn
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 OLLAMA_PORT = 18434
 OPENAI_PORT = 18000
@@ -21,118 +21,133 @@ OPENAI_PORT = 18000
 # 마지막으로 수신한 요청을 보관 → 테스트에서 "무엇이 전송됐는지" 검증
 LAST = {"ollama": None, "openai": None}
 
-
-# ---------------------------------------------------------------- Ollama 목
-ollama_app = FastAPI()
-
-
-@ollama_app.get("/api/tags")
-def tags():
-    return {"models": [
-        {"name": "qwen2.5:7b", "model": "qwen2.5:7b", "size": 4700000000},
-        {"name": "llama3.1:8b", "model": "llama3.1:8b", "size": 4900000000},
-    ]}
+OLLAMA_PIECES = ["로컬", " 모델", " 응답", "입니다."]
+OPENAI_PIECES = ["외부", " API", " 응답", "입니다."]
 
 
-@ollama_app.post("/api/chat")
-async def ollama_chat(request: Request):
-    body = await request.json()
-    LAST["ollama"] = body
-    pieces = ["로컬", " 모델", " 응답", "입니다."]
+class _Base(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
 
-    def gen():
-        for p in pieces:
-            yield json.dumps({
-                "model": body.get("model", "qwen2.5:7b"),
-                "created_at": "2026-07-18T00:00:00Z",
-                "message": {"role": "assistant", "content": p},
-                "done": False,
-            }) + "\n"
+    def log_message(self, *a):  # 테스트 출력 조용히
+        pass
+
+    # ── 응답 헬퍼
+    def _json(self, obj, status=200):
+        body = json.dumps(obj).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _start_stream(self, content_type):
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+
+    def _chunk(self, text):
+        data = text.encode()
+        self.wfile.write(f"{len(data):X}\r\n".encode())
+        self.wfile.write(data)
+        self.wfile.write(b"\r\n")
+        self.wfile.flush()
+
+    def _end_stream(self):
+        self.wfile.write(b"0\r\n\r\n")
+        self.wfile.flush()
+
+    def _body(self):
+        n = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(n) or b"{}")
+
+
+class OllamaHandler(_Base):
+    def do_GET(self):
+        if self.path.startswith("/api/tags"):
+            return self._json({"models": [
+                {"name": "qwen2.5:7b", "model": "qwen2.5:7b", "size": 4700000000},
+                {"name": "llama3.1:8b", "model": "llama3.1:8b", "size": 4900000000},
+            ]})
+        self._json({"error": "not found"}, 404)
+
+    def do_POST(self):
+        if not self.path.startswith("/api/chat"):
+            return self._json({"error": "not found"}, 404)
+        body = self._body()
+        LAST["ollama"] = body
+        model = body.get("model", "qwen2.5:7b")
+        self._start_stream("application/x-ndjson")
+        for p in OLLAMA_PIECES:
+            self._chunk(json.dumps({
+                "model": model, "created_at": "2026-07-18T00:00:00Z",
+                "message": {"role": "assistant", "content": p}, "done": False,
+            }) + "\n")
             time.sleep(0.01)
-        yield json.dumps({
-            "model": body.get("model", "qwen2.5:7b"),
-            "created_at": "2026-07-18T00:00:00Z",
+        self._chunk(json.dumps({
+            "model": model, "created_at": "2026-07-18T00:00:00Z",
             "message": {"role": "assistant", "content": ""},
-            "done": True,
-            "done_reason": "stop",
-            "total_duration": 1000,
-            "eval_count": 4,
-        }) + "\n"
-
-    return StreamingResponse(gen(), media_type="application/x-ndjson")
+            "done": True, "done_reason": "stop", "total_duration": 1000, "eval_count": 4,
+        }) + "\n")
+        self._end_stream()
 
 
-# --------------------------------------------------------- OpenAI 호환 목
-openai_app = FastAPI()
+class OpenAIHandler(_Base):
+    def _auth_failed(self):
+        """키가 없거나 'sk-bad'면 401 — 외부 모드 오류 처리 검증용."""
+        key = self.headers.get("Authorization", "").replace("Bearer ", "").strip()
+        if not key or key == "not-needed":
+            self._json({"error": {"message": "Missing API key"}}, 401)
+            return True
+        if key == "sk-bad":
+            self._json({"error": {"message": "Incorrect API key provided"}}, 401)
+            return True
+        return False
 
+    def do_GET(self):
+        if self.path.startswith("/_debug/last"):
+            return self._json(LAST)
+        if self.path.startswith("/v1/models"):
+            if self._auth_failed():
+                return
+            return self._json({"object": "list", "data": [
+                {"id": "gpt-4o-mini", "object": "model"},
+                {"id": "gpt-4o", "object": "model"},
+                {"id": "gpt-4.1-mini", "object": "model"},
+            ]})
+        self._json({"error": "not found"}, 404)
 
-def _auth_error(request: Request):
-    """키가 없거나 'sk-bad'면 401 — 외부 모드 오류 처리 검증용."""
-    auth = request.headers.get("authorization", "")
-    key = auth.replace("Bearer ", "").strip()
-    if not key or key == "not-needed":
-        return JSONResponse({"error": {"message": "Missing API key"}}, status_code=401)
-    if key == "sk-bad":
-        return JSONResponse({"error": {"message": "Incorrect API key provided"}}, status_code=401)
-    return None
+    def do_POST(self):
+        if not self.path.startswith("/v1/chat/completions"):
+            return self._json({"error": "not found"}, 404)
+        if self._auth_failed():
+            return
+        body = self._body()
+        LAST["openai"] = body
+        model = body.get("model", "gpt-4o-mini")
 
-
-@openai_app.get("/v1/models")
-def models(request: Request):
-    err = _auth_error(request)
-    if err:
-        return err
-    return {"object": "list", "data": [
-        {"id": "gpt-4o-mini", "object": "model"},
-        {"id": "gpt-4o", "object": "model"},
-        {"id": "gpt-4.1-mini", "object": "model"},
-    ]}
-
-
-@openai_app.post("/v1/chat/completions")
-async def chat_completions(request: Request):
-    err = _auth_error(request)
-    if err:
-        return err
-    body = await request.json()
-    LAST["openai"] = body
-    model = body.get("model", "gpt-4o-mini")
-    pieces = ["외부", " API", " 응답", "입니다."]
-
-    def sse():
-        head = {"id": "chatcmpl-1", "object": "chat.completion.chunk", "created": 1,
+        def frame(delta, finish=None):
+            return "data: " + json.dumps({
+                "id": "chatcmpl-1", "object": "chat.completion.chunk", "created": 1,
                 "model": model,
-                "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]}
-        yield f"data: {json.dumps(head)}\n\n"
-        for p in pieces:
-            chunk = {"id": "chatcmpl-1", "object": "chat.completion.chunk", "created": 1,
-                     "model": model,
-                     "choices": [{"index": 0, "delta": {"content": p}, "finish_reason": None}]}
-            yield f"data: {json.dumps(chunk)}\n\n"
+                "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+            }) + "\n\n"
+
+        self._start_stream("text/event-stream")
+        self._chunk(frame({"role": "assistant"}))
+        for p in OPENAI_PIECES:
+            self._chunk(frame({"content": p}))
             time.sleep(0.01)
-        tail = {"id": "chatcmpl-1", "object": "chat.completion.chunk", "created": 1,
-                "model": model,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
-        yield f"data: {json.dumps(tail)}\n\n"
-        yield "data: [DONE]\n\n"
-
-    return StreamingResponse(sse(), media_type="text/event-stream")
-
-
-@openai_app.get("/_debug/last")
-def debug_last():
-    return LAST
-
-
-# ------------------------------------------------------------------- 기동
-def serve(app, port):
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+        self._chunk(frame({}, "stop"))
+        self._chunk("data: [DONE]\n\n")
+        self._end_stream()
 
 
 def start_background():
     """데몬 스레드로 두 목 서버를 띄우고, 준비될 때까지 대기."""
-    for app, port in ((ollama_app, OLLAMA_PORT), (openai_app, OPENAI_PORT)):
-        threading.Thread(target=serve, args=(app, port), daemon=True).start()
+    for handler, port in ((OllamaHandler, OLLAMA_PORT), (OpenAIHandler, OPENAI_PORT)):
+        srv = ThreadingHTTPServer(("127.0.0.1", port), handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
 
     import urllib.request
     for port, path in ((OLLAMA_PORT, "/api/tags"), (OPENAI_PORT, "/v1/models")):
@@ -141,8 +156,7 @@ def start_background():
                 urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=1)
                 break
             except Exception as e:
-                # 401(키 없음)도 서버가 살아있다는 뜻
-                if getattr(e, "code", None) == 401:
+                if getattr(e, "code", None) == 401:  # 서버는 살아있음
                     break
                 time.sleep(0.1)
     return LAST

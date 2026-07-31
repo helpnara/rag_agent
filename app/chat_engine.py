@@ -9,7 +9,6 @@
 """
 from typing import Dict, Generator, List
 
-from langchain_ollama import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app import config
@@ -54,6 +53,9 @@ def _llm(model: str = None, mode: str = None):
             temperature=0,
             streaming=True,
         )
+
+    # 로컬 모드도 지연 임포트: 외부 모드만 쓰는 데모 배포에 ollama 패키지가 없어도 동작.
+    from langchain_ollama import ChatOllama
 
     return ChatOllama(
         model=model or config.OLLAMA_MODEL,
