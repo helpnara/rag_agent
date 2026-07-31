@@ -126,14 +126,39 @@ Streamlit Community Cloud는 메모리가 작고 Docker·GPU가 없어 온프레
 > ⚠️ 데모는 외부 LLM API를 쓰므로 질문과 검색된 문서 내용이 외부로 전송됩니다.
 > 화면 상단에도 같은 경고가 표시됩니다.
 
-### 로컬에서 데모 실행
-```bash
-python -m venv .venv-demo
-.venv-demo/bin/pip install -r requirements.txt      # Windows: .venv-demo\Scripts\pip
+### 로컬에서 데모 실행 (Windows / PowerShell)
+
+Cloud에 올리기 전에 **내 PC에서 먼저 확인**하는 것을 권장합니다. Docker·Ollama 없이 동작합니다.
+
+```powershell
+git clone https://github.com/helpnara/rag_agent.git
+cd rag_agent
+
+# 데모 전용 가상환경 (온프레미스용 .venv와 반드시 분리)
+py -3.11 -m venv .venv-demo
+.\.venv-demo\Scripts\Activate.ps1
+
+pip install -r requirements.txt
 streamlit run streamlit_app.py
+```
+브라우저 → http://localhost:8501
+
+- **최초 1회 인터넷 필요**: fastembed 임베딩 모델(약 220MB)을 자동으로 내려받습니다.
+  (`%USERPROFILE%\.cache\fastembed` 에 저장, 이후에는 오프라인 동작)
+- 실행 후 **사이드바에 본인의 API 키를 입력**하면 바로 질문할 수 있습니다.
+- 키 없이 화면만 보려면 그대로 두고 UI·색인 결과만 확인하면 됩니다.
+
+macOS/Linux는 `python -m venv .venv-demo && source .venv-demo/bin/activate` 로 대체합니다.
+
+### 키·모델 없이 동작만 점검하기
+API 키나 모델 다운로드 없이 배선만 확인하려면 검증 스크립트를 씁니다.
+```powershell
+python tests\verify_demo_rag.py     # 데모 가상환경에서 (모델 못 받으면 스텁으로 자동 대체)
 ```
 
 ### Streamlit Cloud 배포
+> 로컬 확인이 끝난 뒤 진행하는 것을 권장합니다. Cloud는 로그 확인과 재시도가 번거롭습니다.
+
 1. Streamlit Community Cloud → **Create app** → 이 저장소 선택
    - Branch: `main`
    - Main file path: `streamlit_app.py`
