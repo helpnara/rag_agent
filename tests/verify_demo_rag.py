@@ -158,17 +158,32 @@ check("전송 내용에 질문 포함", "연차는 며칠인가요?" in sent)
 check("전송 내용에 검색된 문서 컨텍스트 포함", "출처" in sent)
 
 # ─────────────────────────── 5. 온프레미스 설정 무영향
-print("\n▶ [5] 온프레미스 기본값 회귀 확인")
+print("\n▶ [5] 코드 기본값 회귀 확인 (설정이 없으면 온프레미스 구성)")
 import importlib  # noqa: E402
-for k in ("EMBEDDING_BACKEND", "QDRANT_MODE", "LLM_MODE"):
-    os.environ.pop(k, None)
-importlib.reload(config)
-check("환경변수 없으면 임베딩 = bge-m3 (온프레미스 기본)",
-      config.EMBEDDING_BACKEND == "bge-m3", config.EMBEDDING_BACKEND)
-check("환경변수 없으면 Qdrant = server (Docker)",
-      config.QDRANT_MODE == "server", config.QDRANT_MODE)
-check("환경변수 없으면 LLM = local", config.LLM_MODE == "local", config.LLM_MODE)
-check("온프레미스 벡터 차원 = 1024 (bge-m3)", config.EMBEDDING_DIM == 1024)
+
+import dotenv  # noqa: E402
+
+# config는 임포트 시 load_dotenv()로 .env를 읽는다. 여기서 확인하려는 것은
+# "사용자의 로컬 설정"이 아니라 "코드에 박힌 기본값"이므로, .env 로딩을 잠시 끄고
+# 관련 환경변수를 비운 상태로 재적재한다. (이 격리가 없으면 .env를 둔 개발자
+#  PC에서만 실패하는 검사가 된다)
+_real_load_dotenv = dotenv.load_dotenv
+dotenv.load_dotenv = lambda *a, **k: False
+_saved = {k: os.environ.pop(k, None)
+          for k in ("EMBEDDING_BACKEND", "QDRANT_MODE", "LLM_MODE")}
+try:
+    importlib.reload(config)
+    check("설정 없으면 임베딩 = bge-m3 (온프레미스 기본)",
+          config.EMBEDDING_BACKEND == "bge-m3", config.EMBEDDING_BACKEND)
+    check("설정 없으면 Qdrant = server (Docker)",
+          config.QDRANT_MODE == "server", config.QDRANT_MODE)
+    check("설정 없으면 LLM = local", config.LLM_MODE == "local", config.LLM_MODE)
+    check("온프레미스 벡터 차원 = 1024 (bge-m3)", config.EMBEDDING_DIM == 1024)
+finally:
+    dotenv.load_dotenv = _real_load_dotenv
+    for _k, _v in _saved.items():
+        if _v is not None:
+            os.environ[_k] = _v
 
 # ─────────────────────────── 결과
 print("\n" + "=" * 62)
