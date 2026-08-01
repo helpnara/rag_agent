@@ -33,6 +33,10 @@ VS Code
 
 ## 2. 저장소 열기
 
+> ⚠️ **PowerShell ISE는 사용하지 않는다.** ISE는 개발이 중단된 레거시 도구이고,
+> 진짜 콘솔 호스트가 없어 **대화형 CLI가 정상 동작하지 않는다**(Claude Code 포함).
+> **VS Code 통합 터미널**, Windows Terminal, 또는 일반 PowerShell 콘솔을 쓴다.
+
 ```powershell
 git clone https://github.com/helpnara/rag_agent.git
 cd rag_agent
@@ -174,6 +178,8 @@ Claude Code는 명령 실행 전 승인을 묻는다. 자주 쓰는 명령(예: 
 
 | 증상 | 원인 / 해결 |
 |------|-------------|
+| `git : Cloning into ...` 가 빨간 오류로 표시됨<br>(`NativeCommandError`) | **오류가 아니다.** git은 진행 상황을 stderr로 출력하는데 PowerShell(특히 ISE)이 이를 오류로 간주해 다시 보여주는 것. `$LASTEXITCODE`가 `0`이면 성공. 진짜 실패는 `fatal:` 로 시작한다. ISE 대신 VS Code 터미널 사용 권장 |
+| Claude Code가 실행되지 않거나 화면이 깨짐 | PowerShell ISE에서 실행한 경우. ISE는 대화형 TUI를 지원하지 않는다 → VS Code 통합 터미널에서 실행 |
 | 터미널에서 한글·✅ 가 깨짐 | `.vscode/settings.json`이 UTF-8을 강제한다. VS Code를 다시 열면 적용됨 |
 | `Activate.ps1` 실행 불가 | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 | F5 눌러도 인터프리터 못 찾음 | `.venv` / `.venv-demo` 생성 여부 확인 (3장) |
