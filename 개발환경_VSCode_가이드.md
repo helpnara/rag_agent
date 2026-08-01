@@ -188,6 +188,7 @@ Claude Code는 명령 실행 전 승인을 묻는다. 자주 쓰는 명령(예: 
 | `ModuleNotFoundError: streamlit` | 반대 경우. `.venv-demo` 사용 구성으로 실행 |
 | Streamlit 실행 후 FastAPI가 깨짐 | 두 환경을 섞어 설치한 것. `.venv`를 지우고 3장부터 다시 |
 | `Qdrant 연결 실패` (`WinError 10061`) | Docker Qdrant가 안 떠 있는데 설정이 `server` 모드. `.env`에 `QDRANT_MODE=path`를 넣으면 Docker 없이 동작. (`.env`는 gitignore라 clone 후 `copy .env.example .env` 필요) |
+| `ImportError: DLL load failed ... 애플리케이션 제어 정책에서 이 파일을 차단했습니다` | **Windows 앱 제어 정책(WDAC/AppLocker/스마트 앱 제어)이 네이티브 DLL을 차단**한 것. 코드 문제가 아니다. → 아래 «네이티브 DLL 차단» 참고 |
 | `임베딩 모델 폴더가 없습니다` | `python download_models.py` 실행 |
 | Ollama 연결 실패 | 작업 표시줄에서 Ollama 실행 확인, `ollama list` |
 | 답변이 매우 느림 | CPU 추론 특성. `qwen2.5:3b`로 교체 |
@@ -219,6 +220,36 @@ F5 실행 구성과 Tasks는 이 방식을 쓰므로 **활성화 여부와 무�
 
 > 💡 VS Code 터미널은 **인터프리터를 고르기 전에 열어둔 창**에는 가상환경을 적용하지 않는다.
 > `Python: Select Interpreter` 후에는 터미널을 닫고 새로 열어야 한다.
+
+### 네이티브 DLL 차단 (`애플리케이션 제어 정책에서 이 파일을 차단했습니다`)
+
+```
+ImportError: DLL load failed while importing _xxhash:
+             애플리케이션 제어 정책에서 이 파일을 차단했습니다.
+```
+
+Windows의 앱 제어 정책(**스마트 앱 제어**, WDAC, AppLocker)이 서명되지 않은
+네이티브 확장 모듈(`.pyd`) 로딩을 막을 때 나온다. 파이썬·패키지 문제가 아니다.
+
+**이 프로젝트에서의 대응 (이미 반영됨)**
+`xxhash`는 `langsmith`(LangChain 추적 기능)가 끌어오는 의존성인데,
+이 프로젝트는 추적 기능을 쓰지 않는다. 그래서 네이티브 의존성이 가장 적은
+버전으로 고정해 두었다.
+```
+langsmith==0.4.31      # 0.5+ : uuid-utils 추가,  0.6.7+ : xxhash 추가
+```
+이미 설치했다면 최신 버전이 들어가 있을 수 있으니 다시 맞춘다.
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-onprem.txt
+.\.venv-demo\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+**다른 패키지에서 같은 오류가 난다면**
+차단된 파일 경로를 확인하고 아래 중 하나로 대응한다.
+1. Windows 보안 → **앱 및 브라우저 컨트롤 → 스마트 앱 제어**가 "켬"이면 "끔"으로 변경
+   (한 번 끄면 다시 켤 수 없으니 확인 후 결정)
+2. 회사 관리 PC라면 정책상 해제가 불가능할 수 있다 → IT에 해당 파일 허용 요청
+3. 이벤트 뷰어 → `Microsoft-Windows-CodeIntegrity/Operational` 에서 차단 기록 확인
 
 ---
 

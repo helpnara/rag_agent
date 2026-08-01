@@ -18,6 +18,11 @@ streamlit==1.40.1
 langchain-openai==0.2.9
 langchain-qdrant==0.2.0
 langchain-text-splitters==0.3.2
+# langsmith(추적 기능, 이 프로젝트는 사용하지 않음)는 langchain-core의 전이 의존성이다.
+# 0.5+ 는 uuid-utils, 0.6.7+ 는 xxhash 같은 네이티브 모듈을 추가로 끌어오는데,
+# Windows 애플리케이션 제어 정책이 이런 DLL을 차단하면 임포트 단계에서 죽는다.
+# 네이티브 의존성이 가장 적은 0.4.x 로 고정한다. (폐쇄망 반입 wheel도 줄어든다)
+langsmith==0.4.31
 
 # 벡터DB (Docker 없이 메모리/파일 모드로 사용)
 qdrant-client==1.12.1
