@@ -1,0 +1,8 @@
+{
+  // VS Code가 이 저장소를 열 때 설치를 권장하는 확장.
+  "recommendations": [
+    "anthropic.claude-code",
+    "ms-python.python",
+    "ms-python.debugpy"
+  ]
+}

@@ -82,7 +82,9 @@ rag-agent-web4/
 ├─ CLAUDE.md                      # 이 파일
 ├─ 사내문서_RAG_요구사항정의서.md   # SRS (변경 이력 관리)
 ├─ 개발_진행상황.md                # 일자별 작업 내역 + 향후 계획
+├─ 개발환경_VSCode_가이드.md       # VS Code + Claude Code 환경 구성
 ├─ README.md / README_OFFLINE.md  # 실행/반입 가이드
+├─ .vscode/                       # 실행·디버그·검증 구성 (launch/tasks/settings)
 ├─ requirements.txt               # ★데모(Streamlit Cloud)용 — Cloud가 자동 설치
 ├─ requirements-onprem.txt        # ★온프레미스(FastAPI+Ollama+bge-m3)용
 ├─ streamlit_app.py               # ★데모 진입점 (외부 API + 경량 임베딩)

@@ -13,6 +13,14 @@ import os
 import sys
 import types
 
+# Windows 콘솔 기본 인코딩(cp949)에서는 ✅ 같은 문자를 출력할 수 없어
+# UnicodeEncodeError가 난다. 출력 스트림을 UTF-8로 맞춘다.
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # 프록시가 로컬 목 서버 호출을 가로채지 않도록
 os.environ["no_proxy"] = "127.0.0.1,localhost"
 os.environ["NO_PROXY"] = "127.0.0.1,localhost"

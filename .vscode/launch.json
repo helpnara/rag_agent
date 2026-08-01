@@ -1,0 +1,89 @@
+{
+  // F5 디버그 실행 구성.
+  // 각 구성은 사용할 가상환경을 명시하므로, VS Code에서 선택한 인터프리터와
+  // 무관하게 항상 올바른 환경으로 실행된다.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "온프레미스: FastAPI 서버",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.main:app", "--reload", "--port", "8000"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "windows": { "python": "${workspaceFolder}/.venv/Scripts/python.exe" },
+      "linux": { "python": "${workspaceFolder}/.venv/bin/python" },
+      "osx": { "python": "${workspaceFolder}/.venv/bin/python" }
+    },
+    {
+      "name": "온프레미스: 준비 상태 점검",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/check_offline.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "windows": { "python": "${workspaceFolder}/.venv/Scripts/python.exe" },
+      "linux": { "python": "${workspaceFolder}/.venv/bin/python" },
+      "osx": { "python": "${workspaceFolder}/.venv/bin/python" }
+    },
+    {
+      "name": "온프레미스: 문서 색인 (app.ingest)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "app.ingest",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "windows": { "python": "${workspaceFolder}/.venv/Scripts/python.exe" },
+      "linux": { "python": "${workspaceFolder}/.venv/bin/python" },
+      "osx": { "python": "${workspaceFolder}/.venv/bin/python" }
+    },
+    {
+      "name": "검증: LLM 이중 모드",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/verify_llm_modes.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "windows": { "python": "${workspaceFolder}/.venv/Scripts/python.exe" },
+      "linux": { "python": "${workspaceFolder}/.venv/bin/python" },
+      "osx": { "python": "${workspaceFolder}/.venv/bin/python" }
+    },
+    {
+      "name": "검증: 목 서버로 웹UI 확인",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/serve_mock.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "windows": { "python": "${workspaceFolder}/.venv/Scripts/python.exe" },
+      "linux": { "python": "${workspaceFolder}/.venv/bin/python" },
+      "osx": { "python": "${workspaceFolder}/.venv/bin/python" }
+    },
+    {
+      "name": "데모: Streamlit 실행",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": ["run", "streamlit_app.py"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "windows": { "python": "${workspaceFolder}/.venv-demo/Scripts/python.exe" },
+      "linux": { "python": "${workspaceFolder}/.venv-demo/bin/python" },
+      "osx": { "python": "${workspaceFolder}/.venv-demo/bin/python" }
+    },
+    {
+      "name": "검증: 데모 RAG 구성",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/tests/verify_demo_rag.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "windows": { "python": "${workspaceFolder}/.venv-demo/Scripts/python.exe" },
+      "linux": { "python": "${workspaceFolder}/.venv-demo/bin/python" },
+      "osx": { "python": "${workspaceFolder}/.venv-demo/bin/python" }
+    }
+  ]
+}

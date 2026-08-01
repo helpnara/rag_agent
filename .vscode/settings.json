@@ -1,0 +1,46 @@
+{
+  // 기본 인터프리터는 온프레미스용 .venv.
+  // 데모(Streamlit) 작업 시에는 Ctrl+Shift+P → "Python: Select Interpreter" 로
+  // .venv-demo 를 고른다. (두 환경은 starlette 버전이 충돌해 분리 운영)
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+  "python.terminal.activateEnvironment": true,
+
+  // 한글·이모지 출력이 깨지지 않도록 UTF-8 강제
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "terminal.integrated.env.windows": {
+    "PYTHONUTF8": "1",
+    "PYTHONIOENCODING": "utf-8"
+  },
+  "terminal.integrated.env.linux": { "PYTHONUTF8": "1" },
+  "terminal.integrated.env.osx": { "PYTHONUTF8": "1" },
+
+  // 탐색기·검색에서 제외 (용량이 크거나 생성물)
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  },
+  "search.exclude": {
+    "**/.venv": true,
+    "**/.venv-demo": true,
+    "**/models": true,
+    "**/qdrant_local": true,
+    "**/qdrant_storage": true,
+    "**/wheels": true,
+    "**/__pycache__": true
+  },
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/.venv-demo/**": true,
+    "**/models/**": true,
+    "**/qdrant_local/**": true
+  },
+
+  "[python]": {
+    "editor.rulers": [100],
+    "editor.tabSize": 4
+  },
+  "[markdown]": {
+    "editor.wordWrap": "on"
+  }
+}

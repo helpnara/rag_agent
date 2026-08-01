@@ -1,0 +1,83 @@
+{
+  // Ctrl+Shift+P → "Tasks: Run Task" 로 실행.
+  // 디버거 없이 빠르게 돌릴 때 사용한다.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "설치: 온프레미스 의존성",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe -m pip install -r requirements-onprem.txt",
+      "linux": { "command": "${workspaceFolder}/.venv/bin/python -m pip install -r requirements-onprem.txt" },
+      "osx": { "command": "${workspaceFolder}/.venv/bin/python -m pip install -r requirements-onprem.txt" },
+      "problemMatcher": []
+    },
+    {
+      "label": "설치: 데모 의존성",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-demo/Scripts/python.exe -m pip install -r requirements.txt",
+      "linux": { "command": "${workspaceFolder}/.venv-demo/bin/python -m pip install -r requirements.txt" },
+      "osx": { "command": "${workspaceFolder}/.venv-demo/bin/python -m pip install -r requirements.txt" },
+      "problemMatcher": []
+    },
+    {
+      "label": "온프레미스: 준비 상태 점검",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe check_offline.py",
+      "linux": { "command": "${workspaceFolder}/.venv/bin/python check_offline.py" },
+      "osx": { "command": "${workspaceFolder}/.venv/bin/python check_offline.py" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "온프레미스: 문서 색인",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe -m app.ingest",
+      "linux": { "command": "${workspaceFolder}/.venv/bin/python -m app.ingest" },
+      "osx": { "command": "${workspaceFolder}/.venv/bin/python -m app.ingest" },
+      "problemMatcher": []
+    },
+    {
+      "label": "온프레미스: 서버 실행",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe -m uvicorn app.main:app --reload",
+      "linux": { "command": "${workspaceFolder}/.venv/bin/python -m uvicorn app.main:app --reload" },
+      "osx": { "command": "${workspaceFolder}/.venv/bin/python -m uvicorn app.main:app --reload" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "데모: Streamlit 실행",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-demo/Scripts/python.exe -m streamlit run streamlit_app.py",
+      "linux": { "command": "${workspaceFolder}/.venv-demo/bin/python -m streamlit run streamlit_app.py" },
+      "osx": { "command": "${workspaceFolder}/.venv-demo/bin/python -m streamlit run streamlit_app.py" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "검증: 전체 (온프레미스 + 데모)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["검증: LLM 이중 모드", "검증: 데모 RAG 구성"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "검증: LLM 이중 모드",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe tests/verify_llm_modes.py",
+      "linux": { "command": "${workspaceFolder}/.venv/bin/python tests/verify_llm_modes.py" },
+      "osx": { "command": "${workspaceFolder}/.venv/bin/python tests/verify_llm_modes.py" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "검증: 데모 RAG 구성",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv-demo/Scripts/python.exe tests/verify_demo_rag.py",
+      "linux": { "command": "${workspaceFolder}/.venv-demo/bin/python tests/verify_demo_rag.py" },
+      "osx": { "command": "${workspaceFolder}/.venv-demo/bin/python tests/verify_demo_rag.py" },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
