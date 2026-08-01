@@ -21,6 +21,116 @@
 임베딩과 LLM을 모두 내 PC에서 실행합니다.
 **어떤 문서/질문도 인터넷으로 나가지 않습니다.** (랜선을 뽑아도 동작)
 
+> 💡 **개인 PC에서 처음 돌려보는 경우**는 아래 [개인 PC 빠른 시작](#개인-pc-빠른-시작-windows--docker-없이)을 먼저 보세요.
+> Docker 없이 더 적은 준비물로 동일한 온프레미스 구성을 시험할 수 있습니다.
+
+---
+
+## 개인 PC 빠른 시작 (Windows · Docker 없이)
+
+사내 반입 전에 **내 PC에서 온프레미스 형태를 그대로 시험**하는 절차입니다.
+폐쇄망 절차(반입·오프라인 강제)와 달리, 인터넷으로 모델을 직접 내려받습니다.
+
+### 준비물
+| 필요 | 비고 |
+|------|------|
+| Python 3.11 | "Add python.exe to PATH" 체크 |
+| Ollama for Windows | https://ollama.com/download |
+| 디스크 약 8GB | bge-m3 약 2GB + LLM 약 5GB |
+| Docker | **불필요** (`QDRANT_MODE=path` 사용) |
+| GPU | **불필요** (기본 CPU) |
+
+### 1) 저장소 + 가상환경
+```powershell
+git clone https://github.com/helpnara/rag_agent.git
+cd rag_agent
+
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+pip install -r requirements-onprem.txt      # torch 포함이라 10분 이상 걸릴 수 있음
+```
+
+### 2) 로컬 LLM 받기
+```powershell
+ollama pull qwen2.5:7b
+```
+- CPU만 있으면 응답이 느립니다. 가볍게 확인하려면 `ollama pull qwen2.5:3b` 후
+  `.env`의 `OLLAMA_MODEL=qwen2.5:3b`로 바꾸세요.
+
+### 3) 임베딩 모델 받기 (약 2GB)
+```powershell
+python download_models.py
+```
+→ `models\bge-m3` 폴더에 저장됩니다. 이후에는 인터넷 없이 동작합니다.
+
+### 4) 설정 파일
+```powershell
+copy .env.example .env
+```
+`.env`를 열어 **Docker를 쓰지 않도록** 한 줄만 바꿉니다.
+```
+QDRANT_MODE=path        # server → path  (Docker 불필요, 로컬 파일에 저장)
+```
+> `path` 모드는 색인 결과가 `qdrant_local\` 폴더에 저장되어 **재시작해도 유지**됩니다.
+> Docker Desktop을 쓰고 싶으면 `QDRANT_MODE=server`로 두고 `docker compose up -d`를 실행하세요.
+
+### 5) 준비 상태 점검
+```powershell
+python check_offline.py
+```
+현재 설정(임베딩·벡터DB·LLM)에 맞춰 점검하고, 부족한 항목과 해결 방법을 알려줍니다.
+**모든 항목이 통과한 뒤** 다음으로 넘어가세요.
+
+### 6) 문서 넣고 색인
+```powershell
+# docs 폴더에 PDF/xlsx/pptx/txt/md 파일을 넣은 뒤
+python -m app.ingest
+```
+테스트용 문서가 없다면 `demo_docs\`의 샘플 3종을 `docs\`로 복사해 쓰면 됩니다.
+
+### 7) 실행
+```powershell
+uvicorn app.main:app --reload
+```
+브라우저 → http://localhost:8000
+
+### 두 번째부터
+```powershell
+cd rag_agent
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload
+```
+(Ollama는 설치 후 백그라운드로 자동 실행됩니다. `path` 모드면 Docker도 필요 없습니다.)
+
+### 잘 안 될 때
+| 증상 | 확인 |
+|------|------|
+| `임베딩 모델 폴더가 없습니다` | 3) `python download_models.py` 실행 여부 |
+| `Ollama 연결 실패` | 작업 표시줄에 Ollama 실행 중인지, `ollama list` 확인 |
+| 답변이 매우 느림 | CPU 추론 특성. 더 작은 모델(`qwen2.5:3b`)로 교체 |
+| 답변이 "모른다"만 함 | 6) 색인을 했는지, 화면 좌측에 문서가 보이는지 확인 |
+| `torch` 설치 실패 | Python 3.11인지 확인(3.13은 미지원 패키지 있음) |
+
+### 외부 LLM API도 함께 시험하려면
+`.env`에 아래를 추가하면 화면 상단에서 **로컬 ↔ 외부 API**를 전환할 수 있습니다.
+```
+EXTERNAL_API_KEY=sk-...
+```
+> ⚠️ 외부 모드에서는 질문과 검색된 문서 내용이 외부로 전송됩니다. 개인 PC 시험 시에만 쓰세요.
+
+### 폐쇄망(사내)으로 옮길 때 달라지는 점
+| | 개인 PC | 폐쇄망 |
+|---|---|---|
+| 모델 수급 | 인터넷에서 직접 다운로드 | 반입 PC에서 받아 복사 (`README_OFFLINE.md`) |
+| 벡터DB | `QDRANT_MODE=path` 권장 | Docker Qdrant(`server`) 권장 |
+| 패키지 | `pip install`로 온라인 설치 | wheel 파일 반입 후 오프라인 설치 |
+| LLM 모드 | 필요 시 외부 API 시험 가능 | **로컬만 사용** |
+
+---
+
+## 온프레미스 상세 (기존 절차)
+
 ```
 문서 폴더 → 로더 → 청킹 → bge-m3 임베딩(로컬) → Qdrant(로컬)
 질문 → FastAPI → Ollama LLM(로컬, Tool Calling) → [문서검색 | 내 모델] → 응답
@@ -37,9 +147,9 @@
 
 ## 사전 설치 (윈도우, 한 번만)
 1. Python 3.11 (설치 시 "Add python.exe to PATH" 체크)
-2. Docker Desktop (Qdrant 실행용)
-3. Ollama for Windows  →  https://ollama.com/download
-4. NVIDIA GPU 드라이버 (최신)
+2. Ollama for Windows  →  https://ollama.com/download
+3. Docker Desktop — **선택**. 설치하지 않으려면 `QDRANT_MODE=path`를 쓰세요(아래 참고).
+4. NVIDIA GPU 드라이버 — **선택**. 없으면 CPU로 동작합니다(기본값).
 
 ## 준비: 로컬 LLM 받기
 Ollama 설치 후 PowerShell에서:
@@ -84,10 +194,10 @@ uvicorn app.main:app --reload
 ```
 (Ollama는 설치 후 백그라운드 서비스로 자동 실행됩니다.)
 
-## GPU 확인 / CPU로 강제
-- 기본값은 GPU(cuda) 사용입니다.
-- GPU 인식이 안 되면 `app/vectorstore.py`의 `"device": "cuda"` 를 `"cpu"`로 변경.
-- Ollama는 GPU를 자동 감지합니다.
+## GPU / CPU 설정
+- **기본값은 CPU**입니다(운영 환경이 GPU 없는 사무용 PC 기준).
+- NVIDIA GPU가 있으면 `.env`에 `DEVICE=cuda`로 올려 쓸 수 있습니다.
+- Ollama는 GPU를 자동 감지하므로 별도 설정이 필요 없습니다.
 
 ## 완전 오프라인으로 쓰려면
 최초 1회만 인터넷으로 (1) bge-m3, (2) ollama 모델을 받으면,

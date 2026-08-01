@@ -66,8 +66,10 @@ DEMO_QUESTION_LIMIT = int(os.getenv("DEMO_QUESTION_LIMIT", "5"))
 DEMO_DOCS_DIR = os.getenv("DEMO_DOCS_DIR", "./demo_docs")
 
 
-# GPU 사용 여부 ("cuda" 또는 "cpu")
-DEVICE = os.getenv("DEVICE", "cuda")
+# 임베딩 실행 장치 ("cpu" 또는 "cuda")
+# 운영 환경이 GPU 없는 사무용 PC이므로 기본은 cpu.
+# NVIDIA GPU가 있으면 DEVICE=cuda 로 올려 쓴다.
+DEVICE = os.getenv("DEVICE", "cpu")
 
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
