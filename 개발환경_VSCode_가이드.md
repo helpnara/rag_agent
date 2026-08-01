@@ -183,12 +183,41 @@ Claude Code는 명령 실행 전 승인을 묻는다. 자주 쓰는 명령(예: 
 | 터미널에서 한글·✅ 가 깨짐 | `.vscode/settings.json`이 UTF-8을 강제한다. VS Code를 다시 열면 적용됨 |
 | `Activate.ps1` 실행 불가 | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 | F5 눌러도 인터프리터 못 찾음 | `.venv` / `.venv-demo` 생성 여부 확인 (3장) |
+| **`ModuleNotFoundError`** (huggingface_hub, fastapi, streamlit 등) | **가장 흔한 원인은 가상환경 미활성.** 아래 «가상환경 확인» 참고 |
 | `ModuleNotFoundError: fastapi` | 데모 환경에서 온프레미스 코드를 실행한 것. 구성을 다시 확인 |
 | `ModuleNotFoundError: streamlit` | 반대 경우. `.venv-demo` 사용 구성으로 실행 |
 | Streamlit 실행 후 FastAPI가 깨짐 | 두 환경을 섞어 설치한 것. `.venv`를 지우고 3장부터 다시 |
 | `임베딩 모델 폴더가 없습니다` | `python download_models.py` 실행 |
 | Ollama 연결 실패 | 작업 표시줄에서 Ollama 실행 확인, `ollama list` |
 | 답변이 매우 느림 | CPU 추론 특성. `qwen2.5:3b`로 교체 |
+
+### 가상환경 확인 (ModuleNotFoundError가 났을 때)
+
+지금 어떤 Python이 실행되는지부터 확인한다.
+```powershell
+python -c "import sys; print(sys.executable)"
+```
+
+| 출력 | 상태 | 대응 |
+|------|------|------|
+| `...\rag_agent\.venv\Scripts\python.exe` | 온프레미스 환경 활성 | 패키지 설치가 안 끝난 것 → `pip install -r requirements-onprem.txt` |
+| `...\rag_agent\.venv-demo\Scripts\python.exe` | 데모 환경 활성 | 온프레미스 코드를 실행했다면 환경을 바꾼다 |
+| `C:\Users\...\Python311\python.exe` 등 | **가상환경 비활성** | 아래 활성화 |
+
+```powershell
+.\.venv\Scripts\Activate.ps1      # 프롬프트 앞에 (.venv) 가 붙어야 정상
+```
+
+**활성화 없이 확실하게 실행하는 방법** — 인터프리터를 직접 지정한다.
+```powershell
+.\.venv\Scripts\python.exe download_models.py
+.\.venv\Scripts\python.exe -m app.ingest
+.\.venv-demo\Scripts\python.exe -m streamlit run streamlit_app.py
+```
+F5 실행 구성과 Tasks는 이 방식을 쓰므로 **활성화 여부와 무관하게 항상 정상 동작**한다.
+
+> 💡 VS Code 터미널은 **인터프리터를 고르기 전에 열어둔 창**에는 가상환경을 적용하지 않는다.
+> `Python: Select Interpreter` 후에는 터미널을 닫고 새로 열어야 한다.
 
 ---
 

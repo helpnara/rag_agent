@@ -109,6 +109,7 @@ uvicorn app.main:app --reload
 ### 잘 안 될 때
 | 증상 | 확인 |
 |------|------|
+| `ModuleNotFoundError: huggingface_hub` | 가상환경 미활성 또는 설치 전. `python -c "import sys; print(sys.executable)"` 로 확인 후 `.\.venv\Scripts\Activate.ps1` |
 | `임베딩 모델 폴더가 없습니다` | 3) `python download_models.py` 실행 여부 |
 | `Ollama 연결 실패` | 작업 표시줄에 Ollama 실행 중인지, `ollama list` 확인 |
 | 답변이 매우 느림 | CPU 추론 특성. 더 작은 모델(`qwen2.5:3b`)로 교체 |

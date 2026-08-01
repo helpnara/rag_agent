@@ -6,7 +6,28 @@ Ollama LLM은 이 스크립트로 받지 않는다. README의 Ollama 반입 절�
 실행: python download_models.py
 필요: pip install huggingface_hub
 """
-from huggingface_hub import snapshot_download
+import os
+import sys
+
+try:
+    from huggingface_hub import snapshot_download
+except ModuleNotFoundError:
+    venv = os.path.join(".venv", "Scripts" if os.name == "nt" else "bin",
+                        "python.exe" if os.name == "nt" else "python")
+    print("[오류] huggingface_hub 패키지를 찾을 수 없습니다.\n")
+    print(f"  지금 실행 중인 Python : {sys.executable}")
+    print(f"  가상환경 활성 여부    : {'예' if sys.prefix != sys.base_prefix else '아니오'}\n")
+    print("대부분 가상환경이 활성화되지 않았거나 의존성 설치 전인 경우입니다.")
+    print("아래 중 하나로 해결하세요.\n")
+    print("  1) 가상환경을 활성화하고 설치")
+    print("       .\\.venv\\Scripts\\Activate.ps1        (Windows)")
+    print("       source .venv/bin/activate            (macOS/Linux)")
+    print("       pip install -r requirements-onprem.txt\n")
+    print("  2) 인터프리터를 직접 지정해 실행")
+    print(f"       {venv} download_models.py\n")
+    print("  3) 이 스크립트만 쓰는 반입용 PC라면")
+    print("       pip install huggingface_hub")
+    sys.exit(1)
 
 TARGET = "./models/bge-m3"
 
