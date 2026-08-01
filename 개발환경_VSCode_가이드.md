@@ -187,6 +187,7 @@ Claude Code는 명령 실행 전 승인을 묻는다. 자주 쓰는 명령(예: 
 | `ModuleNotFoundError: fastapi` | 데모 환경에서 온프레미스 코드를 실행한 것. 구성을 다시 확인 |
 | `ModuleNotFoundError: streamlit` | 반대 경우. `.venv-demo` 사용 구성으로 실행 |
 | Streamlit 실행 후 FastAPI가 깨짐 | 두 환경을 섞어 설치한 것. `.venv`를 지우고 3장부터 다시 |
+| `Qdrant 연결 실패` (`WinError 10061`) | Docker Qdrant가 안 떠 있는데 설정이 `server` 모드. `.env`에 `QDRANT_MODE=path`를 넣으면 Docker 없이 동작. (`.env`는 gitignore라 clone 후 `copy .env.example .env` 필요) |
 | `임베딩 모델 폴더가 없습니다` | `python download_models.py` 실행 |
 | Ollama 연결 실패 | 작업 표시줄에서 Ollama 실행 확인, `ollama list` |
 | 답변이 매우 느림 | CPU 추론 특성. `qwen2.5:3b`로 교체 |

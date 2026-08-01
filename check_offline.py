@@ -42,7 +42,9 @@ if config.QDRANT_MODE == "server":
         check(f"Qdrant 연결: {config.QDRANT_URL}", True)
     except Exception as e:
         check(f"Qdrant 연결: {config.QDRANT_URL}", False,
-              f"docker compose up -d 실행. ({e})")
+              "Docker Qdrant를 띄우거나(docker compose up -d), "
+              "Docker 없이 쓰려면 .env에 QDRANT_MODE=path 를 설정하세요.\n"
+              f"         ({e})")
 elif config.QDRANT_MODE == "path":
     parent = os.path.dirname(os.path.abspath(config.QDRANT_PATH)) or "."
     check(f"Qdrant 파일 모드 경로 쓰기 가능: {config.QDRANT_PATH}",
