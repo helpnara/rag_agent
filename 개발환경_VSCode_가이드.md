@@ -21,13 +21,17 @@ VS Code
 
 ## 1. 사전 설치 (한 번만)
 
-| 항목 | 확인 명령 | 비고 |
+| 항목 | 확인 명령 | 설치 |
 |------|-----------|------|
 | VS Code | — | https://code.visualstudio.com |
-| Python **3.11** | `py -3.11 --version` | 3.13은 일부 패키지 미지원 |
+| Python **3.11** | `py -3.11 --version` | https://python.org (3.13은 일부 패키지 미지원) |
 | Git | `git --version` | https://git-scm.com |
-| Node.js 18+ | `node --version` | Claude Code 설치에 필요 |
-| Ollama | `ollama --version` | 온프레미스 LLM용 |
+| Node.js 18+ | `node --version` | `winget install OpenJS.NodeJS.LTS` — **Claude Code에 필요** |
+| Ollama | `ollama --version` | https://ollama.com/download (온프레미스 LLM용) |
+
+> ⚠️ 새로 설치한 뒤에는 **VS Code를 완전히 종료했다가 다시 연다.**
+> VS Code는 실행 시점의 환경변수를 물려받으므로, 터미널만 새로 열어서는
+> 새로 추가된 PATH가 반영되지 않는다.
 
 ---
 
@@ -126,8 +130,15 @@ QDRANT_MODE=path
 
 ### 설치
 ```powershell
+node --version                              # 먼저 Node.js 확인 (없으면 1장 참고)
 npm install -g @anthropic-ai/claude-code
 ```
+
+| 증상 | 해결 |
+|------|------|
+| `'npm' 용어가 ... 인식되지 않습니다` | Node.js 미설치 → `winget install OpenJS.NodeJS.LTS` 후 **VS Code 완전 재시작** |
+| Node는 되는데 `npm`만 안 됨 | PATH 미반영 → VS Code 완전 재시작 |
+| 설치는 됐는데 `claude`를 못 찾음 | `npm config get prefix` 경로가 PATH에 있는지 확인 |
 
 ### 실행
 VS Code 통합 터미널에서 **프로젝트 폴더 안에서**:
@@ -157,6 +168,32 @@ claude
 ```
 A2 항목부터 진행하려고 해. 지금 환경에서 실행 순서 알려줘.
 ```
+
+### 원격 세션(claude.ai)과 함께 쓸 때
+
+두 곳의 **대화 기록은 공유되지 않는다.** 공유되는 것은 Git 저장소뿐이다.
+
+```
+로컬 VS Code ──┐                    ┌── 원격 세션(claude.ai)
+   (실행·검증)  ├──  GitHub 저장소  ──┤   (코드·문서 작업)
+   대화 A      ─┘   코드·문서 공유   └─  대화 B
+```
+
+| | 로컬 VS Code | 원격 세션 |
+|---|---|---|
+| 실제 Ollama·bge-m3 구동 | ✅ | ❌ |
+| Windows 환경 검증 | ✅ | ❌ |
+| 목 서버 기반 검증 | ✅ | ✅ |
+| 코드·문서 작업 | ✅ | ✅ |
+
+**지켜야 할 것**
+1. 작업 시작 전 `git pull`
+2. 작업 단위가 끝나면 커밋·푸시
+3. 같은 파일을 양쪽에서 동시에 고치지 않기
+4. 맥락은 `개발_진행상황.md`에 기록 — 대화로만 남기면 다른 쪽이 알 수 없다
+
+> 실제 실행·검증이 필요한 작업은 **로컬이 유리하다.** 원격 세션은 모델을
+> 구동할 수 없어 목 서버 기반까지만 검증할 수 있다.
 
 ### 작업 흐름 권장
 1. **변경 요청** → Claude Code가 코드 수정
