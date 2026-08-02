@@ -211,7 +211,54 @@ Claude Code는 명령 실행 전 승인을 묻는다. 자주 쓰는 명령(예: 
 
 ---
 
-## 7. 자주 겪는 문제
+## 7. 동기화 — 커밋과 푸시
+
+### 무엇이 다른가
+
+| | 하는 일 | 도달 범위 | 다른 곳에서 보이나 |
+|---|---|---|---|
+| **commit** | 변경을 저장소에 기록 | **내 PC 안** | ❌ |
+| **push** | 커밋을 GitHub로 전송 | **GitHub** | ✅ |
+
+commit은 "저장", push는 "업로드"다.
+**커밋만 하면 내 PC에만 남는다.** 원격 세션·Streamlit Cloud에 반영하려면 push까지 해야 한다.
+
+### 기본 흐름
+
+```
+작업 시작 ──► git pull ──► 코드 수정 ──► 검증 ──► commit ──► push
+                ▲                                              │
+                └──────────  다른 작업 공간의 변경  ◄───────────┘
+```
+
+### VS Code에서
+`Ctrl+Shift+G` (소스 제어)
+1. 메시지 입력 → **Commit**
+2. **Sync Changes** 클릭 — pull과 push를 한 번에 처리한다
+
+### Claude Code에서
+```
+커밋하고 푸시해줘
+```
+
+### 터미널에서
+```powershell
+git pull                     # 작업 시작 전
+git add -A
+git commit -m "메시지"
+git push
+```
+
+### 확인 방법
+```powershell
+git status              # "nothing to commit" + "up to date" 면 동기화 완료
+git log --oneline -3    # 최근 커밋 확인
+```
+`Your branch is ahead of 'origin/main' by N commits` 가 보이면 **push가 안 된 상태**다.
+
+---
+
+## 8. 자주 겪는 문제
 
 | 증상 | 원인 / 해결 |
 |------|-------------|
@@ -290,7 +337,7 @@ langsmith==0.4.31      # 0.5+ : uuid-utils 추가,  0.6.7+ : xxhash 추가
 
 ---
 
-## 8. 참고
+## 9. 참고
 
 - 온프레미스 상세 절차 → `README.md`
 - 폐쇄망 반입 절차 → `README_OFFLINE.md`
