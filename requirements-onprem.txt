@@ -12,13 +12,20 @@ python-multipart==0.0.9
 python-dotenv==1.0.1
 
 # LangChain
-langchain==0.3.7
-langchain-community==0.3.5
+# langchain 0.3.7 / langchain-community 0.3.5는 langsmith<0.2.0을 요구해
+# 아래 langsmith==0.4.31 고정과 충돌한다(ResolutionImpossible). 0.3.27부터
+# langsmith 상한 제약이 풀려 호환되므로 langchain·langchain-community를 함께 올린다.
+langchain==0.3.27
+langchain-community==0.3.27
 langchain-huggingface==0.1.2
 langchain-ollama==0.2.1
 langchain-qdrant==0.2.0
 # 외부 LLM API 모드(OpenAI 호환). 로컬 전용으로 쓰면 설치되어도 호출되지 않음.
 langchain-openai==0.2.9
+# langchain 0.3.27은 langchain-core>=0.3.72를 요구하는데, langchain-core 0.3.83부터
+# uuid-utils(네이티브 모듈)가 새로 추가돼 아래 langsmith 고정과 같은 이유로 문제가
+# 된다. uuid-utils가 없는 마지막 버전(0.3.82)으로 명시 고정한다.
+langchain-core==0.3.82
 # langsmith(추적 기능, 이 프로젝트는 사용하지 않음)는 langchain-core의 전이 의존성이다.
 # 0.5+ 는 uuid-utils, 0.6.7+ 는 xxhash 같은 네이티브 모듈을 추가로 끌어오는데,
 # Windows 애플리케이션 제어 정책이 이런 DLL을 차단하면 임포트 단계에서 죽는다.

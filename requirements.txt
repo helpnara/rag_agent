@@ -18,6 +18,10 @@ streamlit==1.40.1
 langchain-openai==0.2.9
 langchain-qdrant==0.2.0
 langchain-text-splitters==0.3.2
+# langchain-core 0.3.83부터 uuid-utils(네이티브 모듈)가 추가된다. 온프레미스와
+# 동일하게 uuid-utils가 없는 마지막 버전으로 고정해, 두 구성의 라이브러리 버전을
+# 맞추고 네이티브 의존성도 줄인다.
+langchain-core==0.3.82
 # langsmith(추적 기능, 이 프로젝트는 사용하지 않음)는 langchain-core의 전이 의존성이다.
 # 0.5+ 는 uuid-utils, 0.6.7+ 는 xxhash 같은 네이티브 모듈을 추가로 끌어오는데,
 # Windows 애플리케이션 제어 정책이 이런 DLL을 차단하면 임포트 단계에서 죽는다.
